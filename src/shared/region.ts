@@ -18,7 +18,7 @@ export class LocalRegion implements RegionSource {
 export interface Rect { x: number; y: number; w: number; h: number }  // fractions of the viewport
 
 const KEY = 'dsh-whale-rice:region'
-const DEFAULT: Rect = { x: 0.6, y: 0.55, w: 0.36, h: 0.4 }
+const DEFAULT: Rect = { x: 0.48, y: 0.55, w: 0.5, h: 0.4 }
 const MIN_PX = 160
 
 export function loadRegion(): Rect {

@@ -124,7 +124,7 @@ export function apply(ctx: HostContext, config: Config = {}): void {
         const path = new URL(req.url ?? '/', 'http://localhost').pathname.slice(ROUTE.length)
         if (path === '/state') return sendJson(res, snapshot())
         if (path === '/events') return hub.open(req, res)
-        if (path.startsWith('/assets/')) return sendAsset(res, path.slice('/assets/'.length))
+        if (path.startsWith('/assets/')) return sendAsset(req, res, path.slice('/assets/'.length))
         res.writeHead(404).end()
       },
     } satisfies WebRoute), 'whale-rice: http route')
@@ -136,9 +136,12 @@ function sendJson(res: ServerResponse, body: unknown): void {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(text)
 }
 
-async function sendAsset(res: ServerResponse, file: string): Promise<void> {
+async function sendAsset(req: IncomingMessage, res: ServerResponse, file: string): Promise<void> {
   const type = ASSETS.get(file)
   if (!type) return void res.writeHead(404).end()
   const bytes = await readFile(new URL(file, ASSET_DIR))
-  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=31536000, immutable', 'Content-Length': bytes.length }).end(bytes)
+  // Only content-hashed URLs (…?v=<hash>) may be cached forever; anything else is revalidated.
+  const versioned = new URL(req.url ?? '/', 'http://localhost').searchParams.has('v')
+  const cache = versioned ? 'public, max-age=31536000, immutable' : 'no-cache'
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': cache, 'Content-Length': bytes.length }).end(bytes)
 }

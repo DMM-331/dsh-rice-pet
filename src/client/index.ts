@@ -29,6 +29,8 @@ export function apply(ctx: ClientContext): void {
     document.body.append(layer)
     const whale = new Whale(layer, hostUrl(`assets/${ATLAS}`), new LocalRegion(layer))
     const stopFollowing = followState(whale, layer)
+    // Dev harness hook: ?whale-debug exposes the instance (e.g. window.__whale.roll('left')).
+    if (new URLSearchParams(location.search).has('whale-debug')) Object.assign(window, { __whale: whale })
 
     return () => {
       stopFollowing()

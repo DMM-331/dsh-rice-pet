@@ -24,7 +24,7 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parents[2]
 WHITE = 236            # min(r,g,b) at or above this counts as background white
 BULK_MIN_WIDTH = 0.25  # body rows narrower than this share of the widest row are protrusions
-FACE_MIN_PX = 600      # a skin blob smaller than this is a hand, not the face (source pixels)
+FACE_MIN_SHARE = 0.012  # a skin blob smaller than this share of the body is a hand, not the face
 DARK = 200             # gutter detection: a pixel below this is "ink"
 
 
@@ -55,35 +55,40 @@ def dilate(mask: np.ndarray, n: int) -> np.ndarray:
 
 # ---- 1. grid splitting -----------------------------------------------------------------------
 
-def gutter(ink_profile: np.ndarray, lo: float, hi: float) -> int:
-    """Middle of the longest ink-free run inside [lo, hi] of the axis; midpoint if none."""
-    n = len(ink_profile)
-    a, b = int(n * lo), int(n * hi)
-    best, run_start, best_span = None, None, 0
-    for i in range(a, b + 1):
-        free = i < b and not ink_profile[i]
-        if free and run_start is None:
-            run_start = i
-        elif not free and run_start is not None:
-            if i - run_start > best_span:
-                best_span, best = i - run_start, (run_start + i) // 2
-            run_start = None
-    return best if best is not None else n // 2
-
-
 def split(rgb: np.ndarray, grid: list[int] | None) -> list[tuple[int, int, np.ndarray]]:
-    """Return [(x0, y0, crop)] in reading order."""
+    """
+    Return [(x0, y0, crop)] in reading order for a `[cols, rows]` grid.
+
+    Panels from the image model often touch (a tail reaching into the next row, an ahoge poking up
+    past a neighbour), so no straight gutter separates them. Instead every non-white blob is
+    assigned to the cell its centre falls in; a frame is the bounding box of its own blobs, with any
+    pieces of neighbouring characters inside that box painted white.
+    """
     if not grid:
         return [(0, 0, rgb)]
     cols, rows = grid
-    assert (cols, rows) == (2, 2), "only 2x2 grids are supported"
-    ink = rgb.min(2) < DARK
-    ys = gutter(ink.any(1), 0.35, 0.65)
+    h, w = rgb.shape[:2]
+    blobs = [c for c in components(rgb.min(2) < WHITE) if c.sum() >= 20]
+    owner = np.full((h, w), -1, np.int32)
+    by_cell: dict[int, list[np.ndarray]] = {}
+    for c in blobs:
+        ys, xs = np.nonzero(c)
+        cell = min(int(ys.mean() * rows / h), rows - 1) * cols + min(int(xs.mean() * cols / w), cols - 1)
+        by_cell.setdefault(cell, []).append(c)
+        owner[c] = cell
     cells = []
-    for y0, y1 in ((0, ys), (ys, rgb.shape[0])):
-        xs = gutter(ink[y0:y1].any(0), 0.35, 0.65)
-        for x0, x1 in ((0, xs), (xs, rgb.shape[1])):
-            cells.append((x0, y0, rgb[y0:y1, x0:x1]))
+    for cell in range(cols * rows):
+        mine = by_cell.get(cell)
+        if not mine:
+            sys.exit(f"grid cell {cell} is empty — check the grid size in the manifest")
+        ys, xs = np.nonzero(np.logical_or.reduce(mine))
+        pad = 6
+        y0, y1 = max(0, ys.min() - pad), min(h, ys.max() + pad + 1)
+        x0, x1 = max(0, xs.min() - pad), min(w, xs.max() + pad + 1)
+        crop = rgb[y0:y1, x0:x1].copy()
+        others = dilate((owner[y0:y1, x0:x1] >= 0) & (owner[y0:y1, x0:x1] != cell), 2)
+        crop[others] = 255
+        cells.append((x0, y0, crop))
     return cells
 
 
@@ -149,6 +154,7 @@ def measure(rgba: np.ndarray) -> dict:
                 its widest row (the ahoge, a hand raised above the head) don't count
       head_x  – centre of the face (largest skin-coloured blob in the upper body); falls back to the
                 centre of the hair mass when the face is hidden
+      body_cx – centre of the body's bounding box (anchor for lying / rolling poses)
     Floating effects and props on the floor are separate blobs and are ignored entirely.
     """
     main = max(components(rgba[..., 3] > 128), key=lambda c: c.sum())
@@ -162,11 +168,13 @@ def measure(rgba: np.ndarray) -> dict:
     upper = np.zeros_like(main)
     upper[top:top + int((bottom - top) * 0.55)] = True
     blobs = sorted(components(skin & upper), key=lambda c: -c.sum())
-    if blobs and blobs[0].sum() >= FACE_MIN_PX:
+    if blobs and blobs[0].sum() >= main.sum() * FACE_MIN_SHARE:
         head_x = float(np.nonzero(blobs[0])[1].mean())
     else:
         head_x = float(np.nonzero(main[top:top + int((bottom - top) * 0.3)])[1].mean())
-    return {"top": top, "bottom": bottom, "height": bottom - top + 1, "head_x": head_x}
+    cols = np.nonzero(main.any(0))[0]
+    body_cx = (cols.min() + cols.max()) / 2
+    return {"top": top, "bottom": bottom, "height": bottom - top + 1, "head_x": head_x, "body_cx": float(body_cx)}
 
 
 def place(rgba: np.ndarray, m: dict, scale: float, ground: int, cfg: dict, frame_id: str) -> Image.Image:
@@ -185,6 +193,28 @@ def place(rgba: np.ndarray, m: dict, scale: float, ground: int, cfg: dict, frame
     return cell
 
 
+# ---- manifest helpers ------------------------------------------------------------------------
+
+def frame_ids(spec) -> list:
+    """A list of ids (None = skip that cell), or {"prefix": "roll", "count": 36} → roll-00 … roll-35."""
+    if isinstance(spec, dict):
+        return [f"{spec['prefix']}-{i:02d}" for i in range(spec["count"])]
+    return spec
+
+
+def expand(ids: list[str]) -> list[str]:
+    """Expand "roll-02..roll-32" into the ids in between (same prefix, two-digit numbers)."""
+    out = []
+    for item in ids:
+        if ".." in item:
+            a, b = item.split("..")
+            prefix = a.rsplit("-", 1)[0]
+            out += [f"{prefix}-{i:02d}" for i in range(int(a.rsplit("-", 1)[1]), int(b.rsplit("-", 1)[1]) + 1)]
+        else:
+            out.append(item)
+    return out
+
+
 # ---- main ------------------------------------------------------------------------------------
 
 def main(manifest_path: Path) -> None:
@@ -197,19 +227,35 @@ def main(manifest_path: Path) -> None:
     for src in cfg["sources"]:
         rgb = np.asarray(Image.open(art / src["file"]).convert("RGB"))
         frames = []
-        for k, ((x0, y0, crop), fid) in enumerate(zip(split(rgb, src.get("grid")), src["frames"])):
+        ids_here = frame_ids(src["frames"])
+        standing = set(expand(src["standing"])) if "standing" in src else None
+        sitting = set(expand(src.get("sitting", [])))
+        mirror = set(expand(src.get("mirror", [])))
+        for k, ((x0, y0, crop), fid) in enumerate(zip(split(rgb, src.get("grid")), ids_here)):
             if fid is None:
                 continue
-            row = k // 2 if src.get("grid") else 0
+            row = k // src["grid"][0] if src.get("grid") else 0
             rgba = cut_out(crop)
             boxes = [dict(b, box=[b["box"][0] - x0, b["box"][1] - y0, b["box"][2] - x0, b["box"][3] - y0])
                      for b in src.get("inpaint", []) if b["frame"] == fid]
             if boxes:
                 rgba = inpaint(rgba, boxes)
+            # "mirror": frames the model drew facing the other way, flipped so a sequence keeps one direction
+            if fid in mirror:
+                rgba = np.ascontiguousarray(rgba[:, ::-1])
             m = measure(rgba)
             m["row"] = row
-            m["sitting"] = fid in src.get("sitting", [])
+            m["sitting"] = (fid not in standing) if standing is not None else fid in sitting
             frames.append((fid, rgba, m))
+        # "anchor": "body" (tumbling): faces jump around in curled / upside-down poses, so those are
+        # placed by their body centre plus one fixed offset taken from the sheet's standing frames
+        # (which keep the usual face anchor), so the sequence starts and ends in line with every pose.
+        if src.get("anchor") == "body":
+            offsets = [m["head_x"] - m["body_cx"] for _, _, m in frames if not m["sitting"]]
+            off = float(np.mean(offsets)) if offsets else 0.0
+            for _, _, m in frames:
+                if m["sitting"]:
+                    m["head_x"] = m["body_cx"] + off
         sources.append((src, frames))
         print(f"cut {src['file']}: {', '.join(f for f, _, _ in frames)}")
 
@@ -268,16 +314,43 @@ def main(manifest_path: Path) -> None:
     out = cfg["output"]
     image_path = ROOT / out["image"]
     image_path.parent.mkdir(parents=True, exist_ok=True)
-    atlas.save(image_path, quality=90, method=6)
 
     index = {fid: i for i, fid in enumerate(ids)}
     animations = {}
     for name, a in cfg["animations"].items():
-        missing = [f for f in a["frames"] if f not in index]
+        seq = expand(a["frames"])
+        missing = [f for f in seq if f not in index]
         if missing:
             sys.exit(f"animation {name}: unknown frames {missing}")
-        ms = a["ms"] if isinstance(a["ms"], list) else [a["ms"]] * len(a["frames"])
-        animations[name] = {"frames": [index[f] for f in a["frames"]], "durations": ms}
+        ms = a["ms"] if isinstance(a["ms"], list) else [a["ms"]] * len(seq)
+        if len(ms) != len(seq):
+            sys.exit(f"animation {name}: {len(seq)} frames but {len(ms)} durations")
+        animations[name] = {"frames": [index[f] for f in seq], "durations": ms}
+    # "spin": the same curled-up ball drawn at 0/90/180/270° (rolling direction). The runtime turns
+    # it like a wheel around one pivot, so the four frames are re-centred on a shared centre exactly
+    # one rolling radius above the floor; distance travelled = angle × radius, so nothing slides.
+    spin = None
+    if "spin" in cfg:
+        ids_ = [index[f] for f in cfg["spin"]["frames"]]
+        boxes, radii = {}, []
+        for i in ids_:
+            ys, xs = np.nonzero(np.asarray(cells[i])[..., 3] > 128)
+            boxes[i] = (xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
+            radii.append(((xs.max() - xs.min() + 1) + (ys.max() - ys.min() + 1)) / 4)
+        radius = float(np.mean(radii))
+        cx = float(np.mean([(b[0] + b[2]) / 2 for b in boxes.values()]))
+        cy = cfg["anchor"]["y"] - radius
+        for i in ids_:
+            b = boxes[i]
+            dx, dy = round(cx - (b[0] + b[2]) / 2), round(cy - (b[1] + b[3]) / 2)
+            moved = Image.new("RGBA", cells[i].size)
+            moved.alpha_composite(cells[i], (max(dx, 0), max(dy, 0)), (max(-dx, 0), max(-dy, 0)))
+            cells[i] = moved
+            atlas.paste(moved, ((i % cols) * cw, (i // cols) * ch))
+        spin = {"frames": ids_, "cx": round(cx, 1), "cy": round(cy, 1), "radius": round(radius, 1)}
+
+    atlas.save(image_path, quality=90, method=6)
+
     meta = {
         "image": image_path.name,
         # Content hash: clients request the atlas as `whale.webp?v=<version>` so a rebuild is never
@@ -289,7 +362,9 @@ def main(manifest_path: Path) -> None:
         "frames": ids,
         "poses": {k: index[v] for k, v in cfg["poses"].items()},
         "walkFacing": cfg.get("walkFacing", "right"),   # which way the walk frames face as drawn
+        "rollFacing": cfg.get("rollFacing", "left"),    # which way the roll moves as drawn
         "animations": animations,
+        "spin": spin,
     }
     (ROOT / out["meta"]).write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
 

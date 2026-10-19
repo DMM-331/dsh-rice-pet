@@ -1,6 +1,6 @@
 {
   "image": "whale.webp",
-  "version": "570b38375044",
+  "version": "df5980ed5c0b",
   "cell": {
     "w": 480,
     "h": 420
@@ -49,13 +49,23 @@
     "full-belly",
     "full-lean",
     "cheer-jump",
-    "cheer-thumbs"
+    "cheer-thumbs",
+    "sault-stand",
+    "sault-crouch",
+    "sault-ball-0",
+    "sault-ball-90",
+    "sault-ball-180",
+    "sault-ball-270",
+    "sault-dizzy",
+    "sault-kneel",
+    "sault-up"
   ],
   "poses": {
     "rest": 2,
     "carried": 0
   },
   "walkFacing": "left",
+  "rollFacing": "left",
   "animations": {
     "eat_start": {
       "frames": [
@@ -264,6 +274,41 @@
         600,
         1300
       ]
+    },
+    "sault_in": {
+      "frames": [
+        39,
+        40,
+        41
+      ],
+      "durations": [
+        220,
+        200,
+        90
+      ]
+    },
+    "sault_out": {
+      "frames": [
+        45,
+        46,
+        47
+      ],
+      "durations": [
+        650,
+        260,
+        420
+      ]
     }
+  },
+  "spin": {
+    "frames": [
+      41,
+      42,
+      43,
+      44
+    ],
+    "cx": 304.4,
+    "cy": 278.0,
+    "radius": 134.0
   }
 }

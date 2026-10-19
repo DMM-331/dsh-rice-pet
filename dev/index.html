@@ -28,6 +28,8 @@
   <button id="long">长任务完成（cheer）</button>
   <button id="spend">余额变少（回复结束）</button>
   <button id="topup">余额变多 ¥10</button>
+  <button id="rollL">向左打滚</button>
+  <button id="rollR">向右打滚</button>
   <button id="unload">卸载插件</button>
   <div id="log"></div>
 </aside>
@@ -74,6 +76,10 @@
   // A cheer needs a turn of at least 20s, so this one really waits.
   document.getElementById('long').onclick = async () => { await ev('turn/start'); log('waiting 21s for a long turn…'); await sleep(21000); await endTurn('completed'); log('turn/end completed') }
   document.getElementById('topup').onclick = async () => { await call('/dev/topup'); await call('/dev/turn-end'); log('topped up') }
+  // The page is opened with ?whale-debug so the client exposes window.__whale.
+  if (!location.search.includes('whale-debug')) history.replaceState(null, '', '?whale-debug')
+  document.getElementById('rollL').onclick = () => log(window.__whale?.roll('left') ? 'roll left' : 'no room to the left')
+  document.getElementById('rollR').onclick = () => log(window.__whale?.roll('right') ? 'roll right' : 'no room to the right')
   document.getElementById('unload').onclick = () => { disposers.splice(0).forEach(d => d()); log('unloaded') }
 </script>
 <script src="/lib/client.js"></script>

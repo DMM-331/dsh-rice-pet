@@ -30,10 +30,19 @@
     { "file": "batch2/ask.jpeg",   "grid": [2, 2], "frames": ["ask-1", "ask-2", "ask-plead", "ask-knock"] },
     { "file": "batch2/oops.jpeg",  "grid": [2, 2], "frames": ["oops-stuffed", "oops-cough", "oops-teary", "oops-wipe"] },
     { "file": "batch2/full.jpeg",  "grid": [2, 2], "frames": ["full-belly", "full-lean", "cheer-jump", "cheer-thumbs"],
-      "airborne": ["cheer-jump"] }
+      "airborne": ["cheer-jump"] },
+
+    { "file": "batch3/somersault.jpeg", "grid": [3, 3],
+      "frames": ["sault-stand", "sault-crouch", "sault-ball-0", "sault-ball-90", "sault-ball-180", "sault-ball-270",
+                 "sault-dizzy", "sault-kneel", "sault-up"],
+      "standing": ["sault-stand", "sault-up"],
+      "mirror": ["sault-ball-90"], "anchor": "body" }
   ],
 
+  "spin": { "frames": ["sault-ball-0", "sault-ball-90", "sault-ball-180", "sault-ball-270"] },
+
   "walkFacing": "left",
+  "rollFacing": "left",
 
   "poses": {
     "rest": "eat-done",
@@ -65,6 +74,9 @@
 
     "oops":      { "frames": ["oops-stuffed", "oops-cough", "oops-teary", "oops-wipe"], "ms": [500, 700, 900, 1000] },
     "full":      { "frames": ["full-belly", "full-lean"], "ms": [1200, 1400] },
-    "cheer":     { "frames": ["cheer-jump", "cheer-thumbs"], "ms": [600, 1300] }
+    "cheer":     { "frames": ["cheer-jump", "cheer-thumbs"], "ms": [600, 1300] },
+
+    "sault_in":  { "frames": ["sault-stand", "sault-crouch", "sault-ball-0"], "ms": [220, 200, 90] },
+    "sault_out": { "frames": ["sault-dizzy", "sault-kneel", "sault-up"], "ms": [650, 260, 420] }
   }
 }

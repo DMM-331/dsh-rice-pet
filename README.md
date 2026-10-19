@@ -65,7 +65,7 @@ labelled contact sheet at `art/previews/atlas.png`.
 | approval pending (`approval/asked` → `approval/decided`) | waves at you; after 8s pleads and knocks on her bowl |
 | turn ends with `error` / `max-tokens` | chokes / holds her full belly |
 | a turn of 20s+ completes | jumps and gives a thumbs-up |
-| idle | strolls around her area, little gestures, naps after 5 minutes |
+| idle | walks or somersaults (rolls like a wheel: distance = angle × radius) around her area, little gestures, naps after 5 minutes |
 
 ## License
 

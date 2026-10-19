@@ -5,17 +5,21 @@
  *   1. being carried / region editing  – the user is holding her
  *   2. agent activity                  – eat while generating, take notes while tools run, wave for approvals
  *   3. queued reactions                – choke on errors, stuffed on max-tokens, cheer on long turns, pokes
- *   4. idle life                       – stroll around her area, little idle gestures, fall asleep after a while
+ *   4. idle life                       – walk or somersault around her area, little idle gestures, nap after a while
  * Every behaviour runs as a cancellable task: starting a new one bumps `task`, and older loops stop
  * at their next await.
  */
 import type { Activity } from './feed.ts'
 import type { RegionSource } from './region.ts'
-import { anim, CELL, POSE, Sprite, WALK_FACING, type AnimName, type Steps } from './sprite.ts'
+import { anim, CELL, POSE, ROLL_FACING, SPIN, Sprite, WALK_FACING, type AnimName, type Steps } from './sprite.ts'
 
 const SCALE = 0.42
 const W = CELL.w * SCALE, H = CELL.h * SCALE
 const WALK_SPEED = 55                    // px per second
+const ROLL_TURNS = 1                     // full turns of the ball per somersault
+const QUARTER_MS = 170                   // time per quarter turn (one drawn angle)
+const ROLL_DISTANCE = ROLL_TURNS * 2 * Math.PI * SPIN.radius * SCALE   // wheel: distance = angle × radius
+const ROLL_CHANCE = 0.35                 // share of strolls done as a somersault, when there's room
 const SLEEP_AFTER_MS = 5 * 60_000        // no activity or interaction for this long → nap
 const ASK_IMPATIENT_MS = 8_000           // after this, waving turns into pleading / knocking
 const IDLE_GESTURES: AnimName[] = ['idle_look', 'idle_tap', 'idle_peek', 'idle_swish']
@@ -44,6 +48,7 @@ export class Whale {
   private idleTimer: ReturnType<typeof setTimeout> | undefined
   private raf = 0
   private lastAttention = Date.now()
+  private spinDeg = 0                   // extra rotation while somersaulting (around the ball's centre)
   private disposed = false
   private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -205,6 +210,7 @@ export class Whale {
       if (document.hidden) return this.scheduleIdleLife()
       if (Date.now() - this.lastAttention > SLEEP_AFTER_MS) return void this.fallAsleep()
       if (!this.reducedMotion && Math.random() < 0.55) {
+        if (Math.random() < ROLL_CHANCE && this.roll()) return
         const r = this.regions.rect()
         return this.walkTo(r.left + Math.random() * Math.max(0, r.width - W), r.top + Math.random() * Math.max(0, r.height - H))
       }
@@ -235,6 +241,62 @@ export class Whale {
     this.raf = requestAnimationFrame(frame)
   }
 
+  /** Somersault sideways (given or random direction) if the region has room; false if she can't. */
+  roll(direction?: 'left' | 'right'): boolean {
+    if (this.mode !== 'idle' && this.mode !== 'walking') return false
+    const r = this.regions.rect()
+    const room = { left: this.pos.x - r.left, right: r.right - W - this.pos.x }
+    const dirs = (direction ? [direction] : ['left', 'right'] as const).filter(d => room[d] >= ROLL_DISTANCE)
+    if (!dirs.length) return false
+    void this.somersault(dirs[Math.floor(Math.random() * dirs.length)])
+    return true
+  }
+
+  private async somersault(dir: 'left' | 'right'): Promise<void> {
+    const { token } = this.begin('walking')
+    const left = dir === 'left'
+    this.root.classList.toggle('wr-flip', ROLL_FACING === 'left' ? !left : left)
+    if (!(await this.play(token, anim('sault_in')))) return
+    if (!(await this.spin(token, left ? -1 : 1))) return
+    if (await this.play(token, anim('sault_out'))) this.toIdle()
+  }
+
+  /**
+   * Roll the curled-up ball like a wheel. The four drawn angles are swapped every quarter turn and
+   * the ball is rotated smoothly in between; the position always equals angle × radius, so the
+   * point touching the floor never slides. `sign` −1 rolls left (counter-clockwise), +1 right.
+   */
+  private spin(token: number, sign: -1 | 1): Promise<boolean> {
+    const flipped = this.root.classList.contains('wr-flip')
+    const pivotX = (flipped ? CELL.w - SPIN.cx : SPIN.cx) * SCALE
+    this.root.style.transformOrigin = `${pivotX}px ${SPIN.cy * SCALE}px`
+    const radius = SPIN.radius * SCALE
+    const quarters = ROLL_TURNS * 4
+    const fromX = this.pos.x
+    const t0 = performance.now()
+    let shown = -1
+    return new Promise(resolve => {
+      const done = (ok: boolean): void => {
+        this.spinDeg = 0
+        this.root.style.transformOrigin = ''
+        if (ok) this.render(0)
+        resolve(ok)
+      }
+      const tick = (now: number): void => {
+        if (!this.alive(token)) return done(false)
+        const q = Math.min((now - t0) / QUARTER_MS, quarters)     // quarter turns completed
+        const k = Math.min(Math.floor(q), quarters - 1)
+        if (k % 4 !== shown) { shown = k % 4; this.sprite.show(SPIN.frames[shown]) }
+        this.spinDeg = sign * (q - k) * 90
+        this.pos.x = fromX + sign * radius * q * (Math.PI / 2)
+        this.render(0)
+        if (q < quarters) this.raf = requestAnimationFrame(tick)
+        else done(true)
+      }
+      this.raf = requestAnimationFrame(tick)
+    })
+  }
+
   // ---- placement -------------------------------------------------------------------------------
 
   private place(x: number, y: number): void {
@@ -246,7 +308,8 @@ export class Whale {
   }
 
   private render(lift: number): void {
-    this.root.style.transform = `translate(${this.pos.x}px, ${this.pos.y - lift}px)`
+    const turn = this.spinDeg ? ` rotate(${this.spinDeg}deg)` : ''
+    this.root.style.transform = `translate(${this.pos.x}px, ${this.pos.y - lift}px)${turn}`
   }
 
   private readonly onResize = (): void => this.place(this.pos.x, this.pos.y)

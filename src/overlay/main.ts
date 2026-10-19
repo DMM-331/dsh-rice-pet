@@ -22,7 +22,7 @@ const params = new URLSearchParams(location.search)
 const token = params.get('t') ?? ''
 const screen = { x: num('sx'), y: num('sy'), w: num('sw') || innerWidth, h: num('sh') || innerHeight }
 const isMainScreen = screen.x === 0 && screen.y === 0
-const DEFAULT_SIZE = { w: 420, h: 300 }
+const DEFAULT_SIZE = { w: 640, h: 320 }   // wide enough for a somersault (~350px)
 
 function num(name: string): number { return Number(params.get(name) ?? 0) }
 const api = (path: string): string => `${path}${path.includes('?') ? '&' : '?'}t=${encodeURIComponent(token)}`
