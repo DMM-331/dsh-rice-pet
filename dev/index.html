@@ -20,8 +20,14 @@
   <button id="gen">开始生成（吃饭）</button>
   <button id="stop">停止生成（吃完）</button>
   <button id="reply">模拟一次 4 秒回复</button>
-  <button id="spend">模拟扣费（回复结束）</button>
-  <button id="topup">模拟充值 ¥10</button>
+  <button id="tools">生成 → 跑工具 → 生成</button>
+  <button id="ask">请求确认（approval）</button>
+  <button id="decide">确认完成</button>
+  <button id="err">回合报错（oops）</button>
+  <button id="max">超长输出（full）</button>
+  <button id="long">长任务完成（cheer）</button>
+  <button id="spend">余额变少（回复结束）</button>
+  <button id="topup">余额变多 ¥10</button>
   <button id="unload">卸载插件</button>
   <div id="log"></div>
 </aside>
@@ -55,6 +61,18 @@
     await sleep(600); await call('/dev/gen-start'); await sleep(2000); await call('/dev/gen-stop')
     await spend(); log('reply done')
   }
+  const ev = (type, data = {}) => call(`/dev/event?type=${encodeURIComponent(type)}&data=${encodeURIComponent(JSON.stringify(data))}`)
+  document.getElementById('tools').onclick = async () => {
+    await ev('step/start'); await sleep(2500); await ev('assistant/message'); log('tools running')
+    await sleep(5000); await ev('step/end'); await ev('step/start'); await sleep(2500); await ev('assistant/message'); await ev('step/end'); log('done')
+  }
+  document.getElementById('ask').onclick = async () => { await ev('approval/asked', { id: 'a1', toolName: 'shell' }); log('approval/asked') }
+  document.getElementById('decide').onclick = async () => { await ev('approval/decided', { id: 'a1', outcome: 'allowed-once' }); log('approval/decided') }
+  const endTurn = (kind) => ev('turn/end', { turn: 1, reason: { kind } })
+  document.getElementById('err').onclick = async () => { await ev('turn/start'); await endTurn('error'); log('turn/end error') }
+  document.getElementById('max').onclick = async () => { await ev('turn/start'); await endTurn('max-tokens'); log('turn/end max-tokens') }
+  // A cheer needs a turn of at least 20s, so this one really waits.
+  document.getElementById('long').onclick = async () => { await ev('turn/start'); log('waiting 21s for a long turn…'); await sleep(21000); await endTurn('completed'); log('turn/end completed') }
   document.getElementById('topup').onclick = async () => { await call('/dev/topup'); await call('/dev/turn-end'); log('topped up') }
   document.getElementById('unload').onclick = () => { disposers.splice(0).forEach(d => d()); log('unloaded') }
 </script>

@@ -3,10 +3,11 @@
  * follows the node half's event stream. When the desktop overlay (macOS) is running she lives there
  * instead, and this one steps aside. Everything is removed when the plugin unloads.
  */
-import css from './style.css'
-import { feed, type WhaleState } from './feed.ts'
-import { LocalRegion } from './region.ts'
-import { Whale } from './whale.ts'
+import css from '../shared/style.css'
+import { feed, type WhaleState } from '../shared/feed.ts'
+import { LocalRegion } from '../shared/region.ts'
+import { ATLAS } from '../shared/sprite.ts'
+import { Whale } from '../shared/whale.ts'
 
 interface ClientContext {
   effect(fn: () => () => void, label?: string): void
@@ -26,7 +27,7 @@ export function apply(ctx: ClientContext): void {
     const layer = document.createElement('div')
     layer.className = 'wr-layer'
     document.body.append(layer)
-    const whale = new Whale(layer, hostUrl('assets/whale-eat.webp'), new LocalRegion(layer))
+    const whale = new Whale(layer, hostUrl(`assets/${ATLAS}`), new LocalRegion(layer))
     const stopFollowing = followState(whale, layer)
 
     return () => {
@@ -45,11 +46,12 @@ function followState(whale: Whale, layer: HTMLElement): () => void {
   source.onmessage = (message) => {
     const s = JSON.parse(message.data) as WhaleState
     layer.hidden = s.overlay
-    feed(whale, { ...s, generating: s.generating && !s.overlay }, last)
+    if (s.overlay) whale.setActivity('idle')   // the desktop whale reacts instead
+    else feed(whale, s, last)
     last = s
   }
   // A dropped stream (host restart) reconnects by itself; stop eating until it is back.
-  source.onerror = () => { last = null; whale.setGenerating(false) }
+  source.onerror = () => { last = null; whale.setActivity('idle') }
 
   return () => source.close()
 }

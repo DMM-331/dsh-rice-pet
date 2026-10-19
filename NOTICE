@@ -9,8 +9,8 @@ Character lineage (as credited by the community):
   - Chibi icon cleanup by QYQCAMIAO, distributed via github.com/fornarwhal/deepseek-whale-girl-icon
     under CC BY-NC-SA 4.0
 
-The eating sprite frames in assets/whale/ were generated with an image model (Nano Banana) using that
-chibi icon as the style reference, then cut out, aligned and assembled by tools/sprite/.
+The sprite frames in assets/sprites/ (sources in art/) were generated with an image model (Nano Banana) using that
+chibi icon as the style reference, then cut out, aligned and assembled by scripts/sprites/.
 They are adaptations and are shared under the same license: CC BY-NC-SA 4.0 (non-commercial).
 
 If you are a rights holder and object to this use, please open an issue and the artwork will be removed.

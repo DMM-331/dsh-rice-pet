@@ -7,7 +7,7 @@ any screen; elsewhere she stays inside the DSH window.
 ## Features
 
 - **Eats while tokens flow**: from `step/start` until the model's `assistant/message` she loops the eating animation; gaps under 1.5s between steps don't interrupt her. When generation stops she finishes the bite and puts the bowl down.
-- **Shows what it cost**: with an API key configured, the host polls `GET https://api.deepseek.com/user/balance` and a bubble shows each reply's cost (no bubble when you sign in with a DeepSeek account).
+- **Balance on hover**: with an API key configured, the host reads `GET https://api.deepseek.com/user/balance` and the tooltip shows the current balance. Nothing is shown when it can't be read (e.g. DeepSeek-account sign-in), and per-reply costs / top-ups are deliberately not displayed: balance deltas can't be attributed to a single reply reliably.
 - **Desktop mode (macOS)**: she leaves the DSH window. Double-click her → every screen dims → drag a rectangle on any screen to set her area (Esc / right-click cancels). Saved in `~/.dsh/whale-rice/overlay.json`.
 - **Interactions**: click to poke, drag to carry her (she snaps back inside her area), and she hops around her area on her own.
 
@@ -35,23 +35,41 @@ Desktop mode runs a small native helper, `lib/whale-overlay` (Swift, source in `
 
 ```bash
 pnpm install
-pnpm dev          # build + start the local harness at http://127.0.0.1:8770
+pnpm dev          # build + start the local harness at http://127.0.0.1:8770 (DESKTOP=1 to also run the desktop overlay)
 ```
 
 The harness (`dev/`) runs the real host-side code with a mock DeepSeek balance API, so you can simulate charges, top-ups, and unloading without installing DSH.
 
-| Path | Description |
+```
+src/
+  host/        Node half: agent activity (activity.ts), balance, SSE hub, desktop overlay host
+  shared/      The whale itself: behaviour state machine, sprite playback, regions, styles
+  client/      In-app entry (inside the DSH window)
+  overlay/     Desktop overlay page (one per screen, inside the native helper)
+native/macos/  Swift helper: transparent click-through windows
+assets/        Shipped runtime assets: sprites/whale.webp + whale.json, artwork license
+art/           Source artwork (not shipped): generated grids, reference, prompts, sprites.json manifest
+scripts/       build.mjs (all artifacts → lib/), sprites/build_sprites.py (art → atlas)
+dev/           Local harness with mock events and a mock balance API
+```
+
+Sprites: edit `art/sprites.json` (sources, frame ids, animations, durations) and run `pnpm sprites`
+(needs Python 3 with Pillow and NumPy). It splits the 2×2 grids, removes the white background,
+aligns every frame on the feet / head axis and writes `assets/sprites/whale.{webp,json}` plus a
+labelled contact sheet at `art/previews/atlas.png`.
+
+| Agent state (session events) | What she does |
 |---|---|
-| `src/index.ts` | Host side: generation state, balance polling, `/whale-rice/state`, `/events` (SSE) and asset routes |
-| `src/overlay-host.ts`, `native/` | Desktop mode: private server + native transparent-window helper |
-| `src/overlay/` | Desktop page: cross-screen area picking, reports the clickable area |
-| `src/client/` | Web side: overlay layer, sprite playback, roaming/eating/drag state machine, area editing |
-| `assets/whale/` | Sprite sheet `whale-eat.webp` + frame/animation definitions `whale-eat.json` |
-| `tools/sprite/` | Scripts that turn the generated images into the sprite sheet (background removal, alignment, layout) |
+| generating (`step/start` → `assistant/message`) | eats, bite after bite |
+| tools running (`assistant/message` → `step/end`) | takes notes, bowl on the floor |
+| approval pending (`approval/asked` → `approval/decided`) | waves at you; after 8s pleads and knocks on her bowl |
+| turn ends with `error` / `max-tokens` | chokes / holds her full belly |
+| a turn of 20s+ completes | jumps and gives a thumbs-up |
+| idle | strolls around her area, little gestures, naps after 5 minutes |
 
 ## License
 
 - Code: MIT (`LICENSE`)
-- Artwork: CC BY-NC-SA 4.0 (`assets/whale/LICENSE-ARTWORK`), no commercial use; see `NOTICE` for sources
+- Artwork: CC BY-NC-SA 4.0 (`assets/LICENSE-ARTWORK`), no commercial use; see `NOTICE` for sources
 
 Unofficial fan work, not affiliated with DeepSeek.

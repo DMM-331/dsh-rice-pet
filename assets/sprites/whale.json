@@ -1,0 +1,269 @@
+{
+  "image": "whale.webp",
+  "version": "570b38375044",
+  "cell": {
+    "w": 480,
+    "h": 420
+  },
+  "columns": 8,
+  "anchor": {
+    "x": 225,
+    "y": 412
+  },
+  "frames": [
+    "eat-start",
+    "eat-chew-hard",
+    "eat-done",
+    "eat-reach",
+    "eat-chomp",
+    "eat-chew-happy",
+    "eat-more",
+    "walk-1",
+    "walk-2",
+    "walk-3",
+    "walk-4",
+    "idle-look",
+    "idle-tap",
+    "idle-peek",
+    "idle-swish",
+    "sleep-yawn",
+    "sleep-nod",
+    "sleep-1",
+    "sleep-2",
+    "wake-startle",
+    "wake-rub",
+    "wake-stretch",
+    "wake-ready",
+    "tool-read",
+    "tool-write",
+    "tool-think",
+    "tool-nod",
+    "ask-1",
+    "ask-2",
+    "ask-plead",
+    "ask-knock",
+    "oops-stuffed",
+    "oops-cough",
+    "oops-teary",
+    "oops-wipe",
+    "full-belly",
+    "full-lean",
+    "cheer-jump",
+    "cheer-thumbs"
+  ],
+  "poses": {
+    "rest": 2,
+    "carried": 0
+  },
+  "walkFacing": "left",
+  "animations": {
+    "eat_start": {
+      "frames": [
+        0
+      ],
+      "durations": [
+        500
+      ]
+    },
+    "eat_loop": {
+      "frames": [
+        3,
+        4,
+        1,
+        5,
+        1,
+        5
+      ],
+      "durations": [
+        260,
+        220,
+        180,
+        180,
+        180,
+        260
+      ]
+    },
+    "eat_done": {
+      "frames": [
+        2,
+        6
+      ],
+      "durations": [
+        500,
+        600
+      ]
+    },
+    "poke": {
+      "frames": [
+        6
+      ],
+      "durations": [
+        1100
+      ]
+    },
+    "walk": {
+      "frames": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "durations": [
+        170,
+        170,
+        170,
+        170
+      ]
+    },
+    "idle_look": {
+      "frames": [
+        11
+      ],
+      "durations": [
+        2200
+      ]
+    },
+    "idle_tap": {
+      "frames": [
+        12,
+        2,
+        12,
+        2,
+        12
+      ],
+      "durations": [
+        300,
+        250,
+        300,
+        250,
+        900
+      ]
+    },
+    "idle_peek": {
+      "frames": [
+        13
+      ],
+      "durations": [
+        2000
+      ]
+    },
+    "idle_swish": {
+      "frames": [
+        14
+      ],
+      "durations": [
+        1800
+      ]
+    },
+    "sleep_in": {
+      "frames": [
+        15,
+        16
+      ],
+      "durations": [
+        1200,
+        1400
+      ]
+    },
+    "sleep": {
+      "frames": [
+        17,
+        18
+      ],
+      "durations": [
+        1600,
+        1600
+      ]
+    },
+    "wake": {
+      "frames": [
+        19,
+        20,
+        21,
+        22
+      ],
+      "durations": [
+        450,
+        700,
+        800,
+        500
+      ]
+    },
+    "tool_start": {
+      "frames": [
+        23
+      ],
+      "durations": [
+        600
+      ]
+    },
+    "tool_loop": {
+      "frames": [
+        24,
+        25,
+        24,
+        26
+      ],
+      "durations": [
+        900,
+        1100,
+        900,
+        700
+      ]
+    },
+    "ask": {
+      "frames": [
+        27,
+        28
+      ],
+      "durations": [
+        380,
+        380
+      ]
+    },
+    "ask_more": {
+      "frames": [
+        29,
+        30
+      ],
+      "durations": [
+        1400,
+        900
+      ]
+    },
+    "oops": {
+      "frames": [
+        31,
+        32,
+        33,
+        34
+      ],
+      "durations": [
+        500,
+        700,
+        900,
+        1000
+      ]
+    },
+    "full": {
+      "frames": [
+        35,
+        36
+      ],
+      "durations": [
+        1200,
+        1400
+      ]
+    },
+    "cheer": {
+      "frames": [
+        37,
+        38
+      ],
+      "durations": [
+        600,
+        1300
+      ]
+    }
+  }
+}

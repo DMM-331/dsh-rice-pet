@@ -8,12 +8,13 @@ import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
 import { copyFile, mkdir, readFile } from 'node:fs/promises'
 
-const pkg = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'))
+process.chdir(new URL('..', import.meta.url).pathname)   // repo root
+const pkg = JSON.parse(await readFile('package.json', 'utf8'))
 const id = pkg.name
 await mkdir('lib', { recursive: true })
 
 await build({
-  entryPoints: ['src/index.ts'],
+  entryPoints: ['src/host/index.ts'],
   outfile: 'lib/index.js',
   bundle: true,
   format: 'esm',
@@ -39,7 +40,7 @@ await copyFile('src/overlay/overlay.html', 'lib/overlay.html')
 
 if (process.platform === 'darwin') {
   try {
-    execFileSync('swiftc', ['-O', '-swift-version', '5', 'native/WhaleOverlay.swift', '-o', 'lib/whale-overlay'], { stdio: 'inherit' })
+    execFileSync('swiftc', ['-O', '-swift-version', '5', 'native/macos/WhaleOverlay.swift', '-o', 'lib/whale-overlay'], { stdio: 'inherit' })
   } catch {
     console.warn('swiftc unavailable: skipping the desktop overlay helper (the whale stays inside the DSH window)')
   }

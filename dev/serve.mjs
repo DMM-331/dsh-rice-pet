@@ -17,6 +17,12 @@ const mockRoutes = {
   '/dev/spend': (_req, res) => { balance -= 0.0123 + Math.random() * 0.02; json(res, { balance }) },
   '/dev/topup': (_req, res) => { balance += 10; json(res, { balance }) },
   '/dev/turn-end': (_req, res) => { emit('session/event', { id: 'dev' }, { type: 'turn/end', data: { turn: 1 } }); json(res, { ok: true }) },
+  // Any session event: /dev/event?type=approval/asked&data={"id":"a1"}
+  '/dev/event': (req, res) => {
+    const u = new URL(req.url, 'http://x')
+    emit('session/event', { id: 'dev' }, { type: u.searchParams.get('type'), data: JSON.parse(u.searchParams.get('data') ?? '{}') })
+    json(res, { ok: true })
+  },
   // A model call: step/start … assistant/message (tokens flowing), then step/end.
   '/dev/gen-start': (_req, res) => { emit('session/event', { id: 'dev' }, { type: 'step/start', data: { turn: 1, step: 1 } }); json(res, { ok: true }) },
   '/dev/gen-stop': (_req, res) => {
@@ -44,7 +50,8 @@ const emit = (event, ...args) => (listeners.get(event) ?? []).forEach(fn => fn(.
 
 process.env.DEEPSEEK_API_KEY = 'dev-key'
 const plugin = await import(new URL('lib/index.js', root))
-plugin.apply(ctx, { baseUrl: `http://127.0.0.1:${PORT}/mock-deepseek`, pollSeconds: 15 })
+// DESKTOP=1 also runs the macOS desktop overlay; by default the whale stays in this page.
+plugin.apply(ctx, { baseUrl: `http://127.0.0.1:${PORT}/mock-deepseek`, pollSeconds: 15, desktop: process.env.DESKTOP === '1' })
 
 // ---- http ---------------------------------------------------------------------------------------
 const files = { '/': ['dev/index.html', 'text/html'], '/lib/client.js': ['lib/client.js', 'text/javascript'] }

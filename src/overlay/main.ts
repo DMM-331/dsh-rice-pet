@@ -3,10 +3,11 @@
  * whose screen holds the region's centre hosts the whale. Coordinates: the region is stored in
  * top-left-origin global screen points; this page covers the screen at (sx, sy, sw, sh).
  */
-import css from '../client/style.css'
-import { feed, type ScreenRect, type WhaleState } from '../client/feed.ts'
-import type { RegionSource } from '../client/region.ts'
-import { Whale } from '../client/whale.ts'
+import css from '../shared/style.css'
+import { feed, type ScreenRect, type WhaleState } from '../shared/feed.ts'
+import type { RegionSource } from '../shared/region.ts'
+import { ATLAS } from '../shared/sprite.ts'
+import { Whale } from '../shared/whale.ts'
 
 declare global {
   interface Window { webkit?: { messageHandlers?: { whale?: { postMessage(body: unknown): void } } } }
@@ -72,11 +73,11 @@ source.onmessage = (message) => {
   if (whale) feed(whale, s, prev)
   syncPicker(s.editing)
 }
-source.onerror = () => { whale?.setGenerating(false) }
+source.onerror = () => { whale?.setActivity('idle') }
 
 function syncWhale(prev: WhaleState | null): void {
   if (hostsWhale() && !whale) {
-    whale = new Whale(layer, api('/assets/whale-eat.webp'), regions)
+    whale = new Whale(layer, api(`/assets/${ATLAS}`), regions)
   } else if (!hostsWhale() && whale) {
     whale.dispose()
     whale = null

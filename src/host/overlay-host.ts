@@ -16,7 +16,7 @@ import type { Hub } from './hub.ts'
 export interface ScreenRect { x: number; y: number; w: number; h: number }
 
 const LIB_DIR = new URL('./', import.meta.url)          // lib/ at runtime
-const ASSET_DIR = new URL('../assets/whale/', import.meta.url)
+const ASSET_DIR = new URL('../assets/sprites/', import.meta.url)
 const HELPER = new URL('whale-overlay', LIB_DIR)
 const STORE = join(homedir(), '.dsh', 'whale-rice', 'overlay.json')
 const LOG = join(homedir(), '.dsh', 'whale-rice', 'overlay.log')
@@ -25,7 +25,7 @@ const MAX_RESTARTS = 3
 const FILES: Record<string, [URL, string]> = {
   '/': [new URL('overlay.html', LIB_DIR), 'text/html; charset=utf-8'],
   '/overlay.js': [new URL('overlay.js', LIB_DIR), 'text/javascript; charset=utf-8'],
-  '/assets/whale-eat.webp': [new URL('whale-eat.webp', ASSET_DIR), 'image/webp'],
+  '/assets/whale.webp': [new URL('whale.webp', ASSET_DIR), 'image/webp'],
 }
 
 export class OverlayHost {

@@ -2,18 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "whale-preview",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": [
-        "-m",
-        "http.server",
-        "8765",
-        "--directory",
-        "assets/whale"
-      ],
-      "port": 8765
-    },
-    {
       "name": "whale-dev",
       "runtimeExecutable": "node",
       "runtimeArgs": [

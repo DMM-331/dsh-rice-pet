@@ -21,10 +21,11 @@
     "dsh": ">=0.2.0-rc.2 <0.3.0-0"
   },
   "scripts": {
-    "build": "node build.mjs",
-    "prepare": "node build.mjs",
+    "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "dev": "node build.mjs && node dev/serve.mjs"
+    "dev": "node scripts/build.mjs && node dev/serve.mjs",
+    "sprites": "python3 scripts/sprites/build_sprites.py"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -45,11 +46,11 @@
     "lib/client.js",
     "lib/overlay.js",
     "lib/overlay.html",
-    "native/WhaleOverlay.swift",
+    "native/macos/WhaleOverlay.swift",
     "cordis.patch.yml",
-    "assets/whale/whale-eat.webp",
-    "assets/whale/whale-eat.json",
-    "assets/whale/LICENSE-ARTWORK",
+    "assets/sprites/whale.webp",
+    "assets/sprites/whale.json",
+    "assets/LICENSE-ARTWORK",
     "LICENSE",
     "NOTICE",
     "README.md"

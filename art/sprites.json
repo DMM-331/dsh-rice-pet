@@ -1,0 +1,70 @@
+{
+  "output": {
+    "image": "assets/sprites/whale.webp",
+    "meta": "assets/sprites/whale.json",
+    "preview": "art/previews/atlas.png"
+  },
+  "cell": { "w": 480, "h": 420 },
+  "columns": 8,
+  "anchor": { "x": 225, "y": 412 },
+  "bodyHeight": 300,
+
+  "sources": [
+    { "file": "batch1/5.jpg", "grid": [2, 2], "frames": ["eat-start", null, "eat-chew-hard", "eat-done"],
+      "inpaint": [
+        { "frame": "eat-chew-hard", "box": [120, 738, 140, 766], "mode": "marks" },
+        { "frame": "eat-chew-hard", "box": [168, 753, 206, 782], "mode": "text" }
+      ] },
+    { "file": "batch1/1.jpg", "frames": ["eat-reach"] },
+    { "file": "batch1/3.jpg", "frames": ["eat-chomp"] },
+    { "file": "batch1/2.jpg", "frames": ["eat-chew-happy"] },
+    { "file": "batch1/4.jpg", "frames": ["eat-more"] },
+
+    { "file": "batch2/walk.jpeg",  "grid": [2, 2], "frames": ["walk-1", "walk-2", "walk-3", "walk-4"] },
+    { "file": "batch2/idle.jpeg",  "grid": [2, 2], "frames": ["idle-look", "idle-tap", "idle-peek", "idle-swish"] },
+    { "file": "batch2/sleep.jpeg", "grid": [2, 2], "frames": ["sleep-yawn", "sleep-nod", "sleep-1", "sleep-2"],
+      "sitting": ["sleep-yawn", "sleep-nod", "sleep-1", "sleep-2"], "scaleMatch": { "frame": "sleep-yawn", "to": "wake-rub" } },
+    { "file": "batch2/wake.jpeg",  "grid": [2, 2], "frames": ["wake-startle", "wake-rub", "wake-stretch", "wake-ready"],
+      "sitting": ["wake-startle", "wake-rub"] },
+    { "file": "batch2/tool.jpeg",  "grid": [2, 2], "frames": ["tool-read", "tool-write", "tool-think", "tool-nod"] },
+    { "file": "batch2/ask.jpeg",   "grid": [2, 2], "frames": ["ask-1", "ask-2", "ask-plead", "ask-knock"] },
+    { "file": "batch2/oops.jpeg",  "grid": [2, 2], "frames": ["oops-stuffed", "oops-cough", "oops-teary", "oops-wipe"] },
+    { "file": "batch2/full.jpeg",  "grid": [2, 2], "frames": ["full-belly", "full-lean", "cheer-jump", "cheer-thumbs"],
+      "airborne": ["cheer-jump"] }
+  ],
+
+  "walkFacing": "left",
+
+  "poses": {
+    "rest": "eat-done",
+    "carried": "eat-start"
+  },
+
+  "animations": {
+    "eat_start": { "frames": ["eat-start"], "ms": 500 },
+    "eat_loop":  { "frames": ["eat-reach", "eat-chomp", "eat-chew-hard", "eat-chew-happy", "eat-chew-hard", "eat-chew-happy"], "ms": [260, 220, 180, 180, 180, 260] },
+    "eat_done":  { "frames": ["eat-done", "eat-more"], "ms": [500, 600] },
+    "poke":      { "frames": ["eat-more"], "ms": 1100 },
+
+    "walk":      { "frames": ["walk-1", "walk-2", "walk-3", "walk-4"], "ms": 170 },
+
+    "idle_look":  { "frames": ["idle-look"], "ms": 2200 },
+    "idle_tap":   { "frames": ["idle-tap", "eat-done", "idle-tap", "eat-done", "idle-tap"], "ms": [300, 250, 300, 250, 900] },
+    "idle_peek":  { "frames": ["idle-peek"], "ms": 2000 },
+    "idle_swish": { "frames": ["idle-swish"], "ms": 1800 },
+
+    "sleep_in":  { "frames": ["sleep-yawn", "sleep-nod"], "ms": [1200, 1400] },
+    "sleep":     { "frames": ["sleep-1", "sleep-2"], "ms": 1600 },
+    "wake":      { "frames": ["wake-startle", "wake-rub", "wake-stretch", "wake-ready"], "ms": [450, 700, 800, 500] },
+
+    "tool_start": { "frames": ["tool-read"], "ms": 600 },
+    "tool_loop":  { "frames": ["tool-write", "tool-think", "tool-write", "tool-nod"], "ms": [900, 1100, 900, 700] },
+
+    "ask":       { "frames": ["ask-1", "ask-2"], "ms": 380 },
+    "ask_more":  { "frames": ["ask-plead", "ask-knock"], "ms": [1400, 900] },
+
+    "oops":      { "frames": ["oops-stuffed", "oops-cough", "oops-teary", "oops-wipe"], "ms": [500, 700, 900, 1000] },
+    "full":      { "frames": ["full-belly", "full-lean"], "ms": [1200, 1400] },
+    "cheer":     { "frames": ["cheer-jump", "cheer-thumbs"], "ms": [600, 1300] }
+  }
+}
