@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>whale-rice dev harness</title>
+<style>
+  body { margin: 0; height: 100vh; font: 14px system-ui, sans-serif; background: #f4f6fb; color: #1d2a44; display: grid; grid-template-columns: 220px 1fr; }
+  aside { background: #e7ecf6; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  main { padding: 24px; }
+  button { font: inherit; padding: 6px 10px; border-radius: 6px; border: 1px solid #9ab; background: #fff; cursor: pointer; }
+  .chat { max-width: 640px; display: flex; flex-direction: column; gap: 12px; }
+  .msg { background: #fff; border-radius: 10px; padding: 10px 14px; box-shadow: 0 1px 2px rgb(0 0 0 / 0.06); }
+  #log { font: 12px ui-monospace, monospace; color: #567; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<aside>
+  <strong>Dev harness</strong>
+  <button id="gen">开始生成（吃饭）</button>
+  <button id="stop">停止生成（吃完）</button>
+  <button id="reply">模拟一次 4 秒回复</button>
+  <button id="spend">模拟扣费（回复结束）</button>
+  <button id="topup">模拟充值 ¥10</button>
+  <button id="unload">卸载插件</button>
+  <div id="log"></div>
+</aside>
+<main>
+  <div class="chat">
+    <div class="msg">（假装这里是 DeepSeek Harness 的对话区）</div>
+    <div class="msg">鲸鱼娘在右下角的活动范围里溜达。生成时一直吃饭，停下就吃完。点她、拖她、双击编辑范围。</div>
+  </div>
+</main>
+<script>
+  // Minimal stand-in for the DSH web module loader + client cordis context.
+  const disposers = []
+  window.__ModuleLoader__ = {
+    load({ id, factory }) {
+      const mod = factory(name => { throw new Error(`unexpected require(${name})`) })
+      mod.apply({ effect: (fn) => disposers.push(fn()) })
+      log(`loaded ${id}`)
+    },
+  }
+  const log = (t) => { document.getElementById('log').textContent += t + '\n' }
+  const call = (p) => fetch(p).then(r => r.json())
+  // Spending is followed by turn/end, like a real reply; the host re-polls 3s later.
+  const spend = async () => { await call('/dev/spend'); await call('/dev/turn-end'); log('spent, turn/end') }
+  document.getElementById('spend').onclick = spend
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+  document.getElementById('gen').onclick = async () => { await call('/dev/gen-start'); log('step/start') }
+  document.getElementById('stop').onclick = async () => { await call('/dev/gen-stop'); log('assistant/message, step/end') }
+  // Two model calls with a short tool gap (should keep eating), then the turn ends and the bill lands.
+  document.getElementById('reply').onclick = async () => {
+    await call('/dev/gen-start'); await sleep(2000); await call('/dev/gen-stop')
+    await sleep(600); await call('/dev/gen-start'); await sleep(2000); await call('/dev/gen-stop')
+    await spend(); log('reply done')
+  }
+  document.getElementById('topup').onclick = async () => { await call('/dev/topup'); await call('/dev/turn-end'); log('topped up') }
+  document.getElementById('unload').onclick = () => { disposers.splice(0).forEach(d => d()); log('unloaded') }
+</script>
+<script src="/lib/client.js"></script>
+</body>
+</html>

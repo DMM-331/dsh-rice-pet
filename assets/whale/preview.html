@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>鲸鱼娘吃白饭 · 精灵图预览</title>
+<style>
+  body { margin: 0; font: 14px system-ui, sans-serif; background: #eef3fa; color: #1d2a44;
+         display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px; }
+  .stage { display: flex; gap: 32px; align-items: flex-end; }
+  .sprite { background-repeat: no-repeat; image-rendering: auto; }
+  .btns button { font: inherit; padding: 6px 12px; margin: 0 4px; border-radius: 6px; border: 1px solid #9ab; background: #fff; cursor: pointer; }
+  #label { min-height: 1.4em; }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div id="big" class="sprite"></div>
+  <div id="small" class="sprite"></div>
+</div>
+<div id="label"></div>
+<div class="btns">
+  <button data-seq="meal">完整一顿</button>
+  <button data-seq="bite">吃一口</button>
+  <button data-seq="start">开饭</button>
+  <button data-seq="done">吃完</button>
+</div>
+<script>
+// 内嵌一份 whale-eat.json，方便直接双击打开（file:// 下 fetch 不可用）
+const META = {"image":"whale-eat.webp","cell":{"w":440,"h":400},"columns":4,
+  "frames":[{"index":0,"label":"开饭"},{"index":1,"label":"夹饭到嘴边"},{"index":2,"label":"啊呜"},
+            {"index":3,"label":"嚼(开心)"},{"index":4,"label":"嚼(用力)"},{"index":5,"label":"吃完"},{"index":6,"label":"再来一碗"}],
+  "animations":{"eat_start":{"frames":[0],"fps":2},"eat_bite":{"frames":[1,2,3,4,3],"fps":5},"eat_done":{"frames":[5,6],"fps":2}}};
+
+const views = [[document.getElementById("big"), 0.6], [document.getElementById("small"), 0.4]];
+for (const [el, s] of views) {
+  el.style.width = META.cell.w * s + "px"; el.style.height = META.cell.h * s + "px";
+  el.style.backgroundImage = `url(${META.image})`;
+  el.style.backgroundSize = `${META.cell.w * META.columns * s}px auto`;
+}
+function show(i) {
+  const x = (i % META.columns) * META.cell.w, y = Math.floor(i / META.columns) * META.cell.h;
+  for (const [el, s] of views) el.style.backgroundPosition = `${-x * s}px ${-y * s}px`;
+  document.getElementById("label").textContent = `#${i} ${META.frames[i].label}`;
+}
+const anim = (name, times = 1) => Array(times).fill(META.animations[name].frames.map(f => [f, 1000 / META.animations[name].fps])).flat();
+const SEQS = {
+  start: () => anim("eat_start"),
+  bite:  () => anim("eat_bite"),
+  done:  () => anim("eat_done"),
+  meal:  () => [...anim("eat_start"), ...anim("eat_bite", 3), ...anim("eat_done")],
+};
+let timer;
+function play(seq) {
+  clearTimeout(timer);
+  const step = k => { if (k >= seq.length) return; show(seq[k][0]); timer = setTimeout(() => step(k + 1), seq[k][1]); };
+  step(0);
+}
+document.querySelectorAll("button").forEach(b => b.onclick = () => play(SEQS[b.dataset.seq]()));
+play(SEQS.meal());
+</script>
+</body>
+</html>

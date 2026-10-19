@@ -1,0 +1,16 @@
+dsh-whale-rice — artwork notice
+
+The whale maid ("鲸鱼娘" / Whale-chan) is an unofficial, community-created DeepSeek fan character.
+This project is not affiliated with or endorsed by DeepSeek.
+
+Character lineage (as credited by the community):
+  - Original character 溟月 by 上善无形 (Bilibili space.bilibili.com/4456176)
+  - DeepSeek maid remix by ZipZipPipe (Bilibili space.bilibili.com/4168597)
+  - Chibi icon cleanup by QYQCAMIAO, distributed via github.com/fornarwhal/deepseek-whale-girl-icon
+    under CC BY-NC-SA 4.0
+
+The eating sprite frames in assets/whale/ were generated with an image model (Nano Banana) using that
+chibi icon as the style reference, then cut out, aligned and assembled by tools/sprite/.
+They are adaptations and are shared under the same license: CC BY-NC-SA 4.0 (non-commercial).
+
+If you are a rights holder and object to this use, please open an issue and the artwork will be removed.

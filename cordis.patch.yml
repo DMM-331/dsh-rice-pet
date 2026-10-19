@@ -1,0 +1,8 @@
+# Inserts the whale-rice plugin (node half + web client) into the profile.
+# Install: dsh plugin --profile web add <path-or-git-url>
+- insert:
+    - id: whale-rice
+      name: 'dsh-whale-rice'
+      # config:
+      #   apiKeyRef: DEEPSEEK_API_KEY   # credential / env var name holding the DeepSeek key
+      #   pollSeconds: 60

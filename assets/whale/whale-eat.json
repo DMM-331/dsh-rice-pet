@@ -1,0 +1,99 @@
+{
+  "image": "whale-eat.webp",
+  "cell": {
+    "w": 440,
+    "h": 400
+  },
+  "columns": 4,
+  "anchor": {
+    "x": 205,
+    "y": 394,
+    "note": "head center x / feet baseline y inside each cell"
+  },
+  "frames": [
+    {
+      "index": 0,
+      "id": "g1",
+      "label": "开饭"
+    },
+    {
+      "index": 1,
+      "id": "s1",
+      "label": "夹饭到嘴边"
+    },
+    {
+      "index": 2,
+      "id": "s3",
+      "label": "啊呜"
+    },
+    {
+      "index": 3,
+      "id": "s2",
+      "label": "嚼(开心)"
+    },
+    {
+      "index": 4,
+      "id": "g3",
+      "label": "嚼(用力)"
+    },
+    {
+      "index": 5,
+      "id": "g4",
+      "label": "吃完"
+    },
+    {
+      "index": 6,
+      "id": "s4",
+      "label": "再来一碗"
+    }
+  ],
+  "animations": {
+    "eat_start": {
+      "frames": [
+        0
+      ],
+      "fps": 2,
+      "loop": false,
+      "note": "played once when generation starts"
+    },
+    "eat_loop": {
+      "frames": [
+        1,
+        2,
+        4,
+        3,
+        4,
+        3
+      ],
+      "durations": [
+        260,
+        220,
+        180,
+        180,
+        180,
+        260
+      ],
+      "loop": true
+    },
+    "eat_bite": {
+      "frames": [
+        1,
+        2,
+        3,
+        4,
+        3
+      ],
+      "fps": 5,
+      "loop": true
+    },
+    "eat_done": {
+      "frames": [
+        5,
+        6
+      ],
+      "fps": 2,
+      "loop": false,
+      "note": "played once after generation stops"
+    }
+  }
+}
