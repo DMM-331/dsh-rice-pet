@@ -2,7 +2,7 @@
  * The whale maid, a small desktop pet.
  *
  * What she does is decided in one place (`decide()`), in priority order:
- *   1. being carried / region editing  – the user is holding her
+ *   1. held / flying / region editing  – picked up by the scruff, thrown, or the user picks her area
  *   2. agent activity                  – eat while generating, take notes while tools run, wave for approvals
  *   3. queued reactions                – choke on errors, stuffed on max-tokens, cheer on long turns, pokes
  *   4. idle life                       – walk or somersault around her area, little idle gestures, nap after a while
@@ -11,7 +11,8 @@
  */
 import type { Activity } from './feed.ts'
 import type { RegionSource } from './region.ts'
-import { anim, CELL, POSE, ROLL_FACING, SPIN, Sprite, WALK_FACING, type AnimName, type Steps } from './sprite.ts'
+import { anim, CELL, PIN, POSE, ROLL_FACING, SPIN, Sprite, WALK_FACING, type AnimName, type Steps } from './sprite.ts'
+import { Flight, Pendulum, PointerVelocity } from './toss.ts'
 
 const SCALE = 0.42
 const W = CELL.w * SCALE, H = CELL.h * SCALE
@@ -23,6 +24,11 @@ const ROLL_CHANCE = 0.35                 // share of strolls done as a somersaul
 const SLEEP_AFTER_MS = 5 * 60_000        // no activity or interaction for this long → nap
 const ASK_IMPATIENT_MS = 8_000           // after this, waving turns into pleading / knocking
 const IDLE_GESTURES: AnimName[] = ['idle_look', 'idle_tap', 'idle_peek', 'idle_swish']
+const GRAB_EASE_MS = 180                 // she is pulled up into the pinch over this long
+const STRUGGLE_AFTER_MS = 2500           // dangling longer than this → she starts to struggle
+const STRUGGLE_MS = 4500                 // one bout of struggling, then she goes limp for a while
+const STICK_LANDING_DEG = 40             // body within this of upright at impact → gymnast landing
+const STICK_LANDING_SPEED = 1500         // px/s; hitting the floor faster than this → face-plant
 
 const LINES = {
   poke: ['饭饭！', '再来一碗~', '摸鱼中…', '今天也要好好吃饭', '嗷呜！', '哼，才不是在等你'],
@@ -32,9 +38,15 @@ const LINES = {
   oops: '咳咳…噎住了',
   full: '吃、吃撑了…',
   cheer: '做完啦！快回来看看~',
+  struggle: ['放我下来！', '呜哇哇——', '哼！快松手！', '不要拎我啦！'],
+  tired: '……累了，随便你吧',
+  stuck: ['完美落地！', '十点零分！', '哼哼~'],
+  splat: ['呜…好痛', '鼻子…', '下次轻点啦！'],
 } as const
 
-type Mode = 'idle' | 'walking' | 'busy' | 'activity' | 'asleep' | 'dragging' | 'editing'
+const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]
+
+type Mode = 'idle' | 'walking' | 'busy' | 'activity' | 'asleep' | 'held' | 'flying' | 'editing'
 type Reaction = { anim: AnimName; line?: string }
 
 export class Whale {
@@ -48,11 +60,12 @@ export class Whale {
   private idleTimer: ReturnType<typeof setTimeout> | undefined
   private raf = 0
   private lastAttention = Date.now()
-  private spinDeg = 0                   // extra rotation while somersaulting (around the ball's centre)
+  private turnDeg = 0                   // extra rotation (somersault ball, dangling swing, tumbling flight)
+  private held: { token: number; px: number; py: number; since: number; velocity: PointerVelocity; swing: Pendulum } | null = null
   private disposed = false
   private readonly reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  constructor(layer: HTMLElement, imageUrl: string, private readonly regions: RegionSource) {
+  constructor(private readonly layer: HTMLElement, imageUrl: string, private readonly regions: RegionSource) {
     this.root.className = 'wr-whale wr-idle'
     const inner = document.createElement('div')
     inner.className = 'wr-sprite'
@@ -78,10 +91,8 @@ export class Whale {
     this.root.remove()
   }
 
-  setTooltip(text: string): void { this.root.title = text }
-
-  /** A drag or an edit is in progress (the desktop overlay must keep receiving the mouse). */
-  get interacting(): boolean { return this.mode === 'dragging' || this.mode === 'editing' }
+  /** She is held or her area is being edited (the desktop overlay must keep receiving the mouse). */
+  get interacting(): boolean { return this.mode === 'held' || this.mode === 'editing' }
 
   /** Screen-space bounds of everything clickable (the desktop overlay lets clicks through elsewhere). */
   hitRect(): DOMRect { return this.root.getBoundingClientRect() }
@@ -117,7 +128,7 @@ export class Whale {
   // ---- the director ----------------------------------------------------------------------------
 
   private decide(): void {
-    if (this.disposed || this.mode === 'dragging' || this.mode === 'editing') return
+    if (this.disposed || this.mode === 'held' || this.mode === 'flying' || this.mode === 'editing') return
     if (this.activity !== 'idle') {
       if (this.mode !== 'activity') void this.runActivity()
       return
@@ -141,6 +152,8 @@ export class Whale {
     this.sprite.stop()
     cancelAnimationFrame(this.raf)
     clearTimeout(this.idleTimer)
+    this.turnDeg = 0                      // an interrupted somersault / swing / flight leaves no tilt
+    this.root.style.transformOrigin = ''
     this.mode = mode
     this.root.classList.toggle('wr-idle', mode === 'idle')
     this.render(0)
@@ -267,9 +280,7 @@ export class Whale {
    * point touching the floor never slides. `sign` −1 rolls left (counter-clockwise), +1 right.
    */
   private spin(token: number, sign: -1 | 1): Promise<boolean> {
-    const flipped = this.root.classList.contains('wr-flip')
-    const pivotX = (flipped ? CELL.w - SPIN.cx : SPIN.cx) * SCALE
-    this.root.style.transformOrigin = `${pivotX}px ${SPIN.cy * SCALE}px`
+    this.setPivot(SPIN.cx, SPIN.cy)
     const radius = SPIN.radius * SCALE
     const quarters = ROLL_TURNS * 4
     const fromX = this.pos.x
@@ -277,7 +288,7 @@ export class Whale {
     let shown = -1
     return new Promise(resolve => {
       const done = (ok: boolean): void => {
-        this.spinDeg = 0
+        this.turnDeg = 0
         this.root.style.transformOrigin = ''
         if (ok) this.render(0)
         resolve(ok)
@@ -287,7 +298,7 @@ export class Whale {
         const q = Math.min((now - t0) / QUARTER_MS, quarters)     // quarter turns completed
         const k = Math.min(Math.floor(q), quarters - 1)
         if (k % 4 !== shown) { shown = k % 4; this.sprite.show(SPIN.frames[shown]) }
-        this.spinDeg = sign * (q - k) * 90
+        this.turnDeg = sign * (q - k) * 90
         this.pos.x = fromX + sign * radius * q * (Math.PI / 2)
         this.render(0)
         if (q < quarters) this.raf = requestAnimationFrame(tick)
@@ -307,59 +318,172 @@ export class Whale {
     this.render(0)
   }
 
+  /** Rotation pivot for `turnDeg`, in cell px of the frame as drawn (mirrored when flipped). */
+  private setPivot(cellX: number, cellY: number): { x: number; y: number } {
+    const flipped = this.root.classList.contains('wr-flip')
+    const x = (flipped ? CELL.w - cellX : cellX) * SCALE, y = cellY * SCALE
+    this.root.style.transformOrigin = `${x}px ${y}px`
+    return { x, y }
+  }
+
   private render(lift: number): void {
-    const turn = this.spinDeg ? ` rotate(${this.spinDeg}deg)` : ''
+    const turn = this.turnDeg ? ` rotate(${this.turnDeg}deg)` : ''
     this.root.style.transform = `translate(${this.pos.x}px, ${this.pos.y - lift}px)${turn}`
   }
 
   private readonly onResize = (): void => this.place(this.pos.x, this.pos.y)
 
-  // ---- pointer: click = poke, drag = carry, double-click = edit region -------------------------
+  // ---- pointer: click = poke, drag = pick up by the scruff, release = throw, dblclick = area ------
 
   private onClick(): void {
     this.lastAttention = Date.now()
     if (this.mode === 'asleep') return void this.runReaction({ anim: 'wake', line: '唔…早上好？' })
-    if (this.mode === 'activity') return this.say(this.activity === 'ask' ? LINES.askPoke : LINES.busy[Math.floor(Math.random() * LINES.busy.length)])
-    if (this.mode === 'idle' || this.mode === 'walking') {
-      this.runReaction({ anim: 'poke', line: LINES.poke[Math.floor(Math.random() * LINES.poke.length)] })
-    }
+    if (this.mode === 'activity') return this.say(this.activity === 'ask' ? LINES.askPoke : pick(LINES.busy))
+    if (this.mode === 'idle' || this.mode === 'walking') this.runReaction({ anim: 'poke', line: pick(LINES.poke) })
   }
 
   private bindPointer(): void {
-    let start: { x: number; y: number; ox: number; oy: number } | null = null
-    let dragged = false
-
+    let start: { x: number; y: number } | null = null
     this.root.addEventListener('pointerdown', e => {
       if (this.mode === 'editing') return
-      start = { x: e.clientX, y: e.clientY, ox: this.pos.x, oy: this.pos.y }
-      dragged = false
+      start = { x: e.clientX, y: e.clientY }
       this.root.setPointerCapture(e.pointerId)
       e.preventDefault()
     })
     this.root.addEventListener('pointermove', e => {
       if (!start) return
-      const dx = e.clientX - start.x, dy = e.clientY - start.y
-      if (!dragged && Math.hypot(dx, dy) < 5) return
-      if (!dragged) {
-        dragged = true
-        this.lastAttention = Date.now()
-        this.begin('dragging')
-        this.sprite.show(POSE.carried)
-        this.root.classList.add('wr-dragging')
+      if (!this.held) {
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < 5) return
+        this.grab(e.clientX, e.clientY)
       }
-      this.pos.x = start.ox + dx
-      this.pos.y = start.oy + dy
-      this.render(0)
+      this.held!.px = e.clientX
+      this.held!.py = e.clientY
+      this.held!.velocity.add(e.clientX, e.clientY)
     })
-    this.root.addEventListener('pointerup', () => {
+    const up = (): void => {
       if (!start) return
       start = null
-      this.root.classList.remove('wr-dragging')
-      if (!dragged) return this.onClick()
-      this.place(this.pos.x, this.pos.y)   // drop back inside the region
-      this.toIdle()
-    })
+      if (this.held) this.release()
+      else this.onClick()
+    }
+    this.root.addEventListener('pointerup', up)
+    this.root.addEventListener('pointercancel', up)
     this.root.addEventListener('dblclick', () => void this.editArea())
+  }
+
+  // ---- picked up: dangle from the pointer, swing, struggle when held too long -----------------
+
+  private grab(px: number, py: number): void {
+    const { token } = this.begin('held')
+    this.lastAttention = Date.now()
+    this.root.classList.add('wr-held')
+    const velocity = new PointerVelocity()
+    velocity.add(px, py)
+    this.held = { token, px, py, since: performance.now(), velocity, swing: new Pendulum() }
+    const pin = this.setPivot(PIN.x, PIN.y)
+    // Where she was grabbed relative to the scruff; eased away so she is pulled up into the
+    // pinch instead of jumping there.
+    const offset = { x: this.pos.x + pin.x - px, y: this.pos.y + pin.y - py }
+    const t0 = performance.now()
+    let last = t0
+    // The pinch point ends up exactly under the pointer; the body swings around it.
+    const tick = (now: number): void => {
+      const h = this.held
+      if (!h || !this.alive(token)) return
+      const dt = Math.min(0.05, (now - last) / 1000)
+      last = now
+      const ease = Math.max(0, 1 - (now - t0) / GRAB_EASE_MS) ** 2
+      this.turnDeg = h.swing.step(dt, h.velocity.get(now).vx)
+      this.pos.x = h.px - pin.x + offset.x * ease
+      this.pos.y = h.py - pin.y + offset.y * ease
+      this.render(0)
+      this.raf = requestAnimationFrame(tick)
+    }
+    this.raf = requestAnimationFrame(tick)
+    void this.dangle(token)
+  }
+
+  private async dangle(token: number): Promise<void> {
+    if (!(await this.play(token, anim('lift')))) return
+    while (this.alive(token) && this.held) {
+      if (performance.now() - this.held.since < STRUGGLE_AFTER_MS) {
+        if (!(await this.play(token, anim('hang')))) return
+        continue
+      }
+      this.say(pick(LINES.struggle))
+      const until = performance.now() + STRUGGLE_MS
+      while (performance.now() < until) {
+        if (!(await this.play(token, anim(pick(['kick', 'flail', 'wiggle'] as const), 2)))) return
+      }
+      this.say(LINES.tired)
+      if (!(await this.play(token, anim('tired', 2)))) return
+    }
+  }
+
+  // ---- thrown: ballistic flight, then a gymnast landing or a face-plant, then walk back -------
+
+  private release(): void {
+    const h = this.held
+    if (!h) return
+    this.held = null
+    this.root.classList.remove('wr-held')
+    const { vx, vy } = h.velocity.get()
+    void this.toss(vx, vy, this.turnDeg)
+  }
+
+  private async toss(vx: number, vy: number, angle: number): Promise<void> {
+    const { token } = this.begin('flying')
+    // Flight frames face left as drawn; mirror them when she flies to the right.
+    if (Math.abs(vx) > 40) this.root.classList.toggle('wr-flip', vx > 0)
+    this.setPivot(CELL.w / 2, CELL.h * 0.6)
+    const r = this.regions.rect()
+    const room = this.layer.getBoundingClientRect()
+    const ground = Math.max(r.bottom - H, Math.min(this.pos.y, room.height - H))
+    const bounds = { left: 0, top: 0, right: room.width - W, ground }
+    const flight = new Flight(this.pos.x, this.pos.y, vx, vy, angle)
+    let highest = this.pos.y
+    let impact = 0
+    let shown = -1
+    const landed = await new Promise<boolean>(resolve => {
+      let last = performance.now()
+      const tick = (now: number): void => {
+        if (!this.alive(token)) return resolve(false)
+        const dt = Math.min(0.033, (now - last) / 1000)
+        last = now
+        const vyBefore = flight.vy
+        const down = flight.step(dt, bounds)
+        highest = Math.min(highest, flight.y)
+        const frame = flight.vy < -150 ? POSE.air_rise : Math.abs(flight.spin) > 220 ? POSE.air_tumble : POSE.air_fall
+        if (frame !== shown) { this.sprite.show(frame); shown = frame }
+        this.pos.x = flight.x
+        this.pos.y = flight.y
+        this.turnDeg = flight.angle
+        this.render(0)
+        if (down) { impact = vyBefore; return resolve(true) }
+        this.raf = requestAnimationFrame(tick)
+      }
+      this.raf = requestAnimationFrame(tick)
+    })
+    if (!landed) return
+    const tilt = Math.abs(flight.uprightError)
+    this.turnDeg = 0
+    this.root.style.transformOrigin = ''
+    this.render(0)
+
+    if (ground - highest < 40 && tilt < 60) {
+      if (!(await this.play(token, [[POSE.touch_down, 160]]))) return     // just set down
+    } else if (tilt <= STICK_LANDING_DEG && impact < STICK_LANDING_SPEED) {
+      this.say(pick(LINES.stuck))
+      if (!(await this.play(token, anim('land_a')))) return
+    } else {
+      this.say(pick(LINES.splat))
+      if (!(await this.play(token, anim('land_b')))) return
+    }
+    // Thrown out of her area: walk back in.
+    const tx = Math.min(Math.max(this.pos.x, r.left), r.right - W)
+    const ty = Math.min(Math.max(this.pos.y, r.top), r.bottom - H)
+    if (Math.hypot(tx - this.pos.x, ty - this.pos.y) > 4) this.walkTo(tx, ty)
+    else this.toIdle()
   }
 
   private async editArea(): Promise<void> {

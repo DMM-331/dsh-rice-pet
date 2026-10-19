@@ -1,14 +1,14 @@
 {
   "image": "whale.webp",
-  "version": "df5980ed5c0b",
+  "version": "e728433cda2b",
   "cell": {
-    "w": 480,
+    "w": 500,
     "h": 420
   },
   "columns": 8,
   "anchor": {
     "x": 225,
-    "y": 412
+    "y": 404
   },
   "frames": [
     "eat-start",
@@ -58,11 +58,46 @@
     "sault-ball-270",
     "sault-dizzy",
     "sault-kneel",
-    "sault-up"
+    "sault-up",
+    "hang-1",
+    "hang-2",
+    "hang-3",
+    "hang-4",
+    "kick-1",
+    "kick-2",
+    "kick-3",
+    "kick-4",
+    "flail-1",
+    "flail-2",
+    "flail-3",
+    "flail-4",
+    "wiggle-1",
+    "wiggle-2",
+    "wiggle-3",
+    "wiggle-4",
+    "lift-up",
+    "lift-tilt",
+    "tired-1",
+    "tired-2",
+    "tired-3",
+    "splat-stand",
+    "splat-impact",
+    "air-rise",
+    "air-tumble",
+    "air-fall",
+    "land-crouch",
+    "land-ta-da",
+    "land-proud",
+    "splat-flat",
+    "splat-dazed",
+    "splat-sit"
   ],
   "poses": {
     "rest": 2,
-    "carried": 0
+    "air_rise": 71,
+    "air_tumble": 72,
+    "air_fall": 73,
+    "touch_down": 74
   },
   "walkFacing": "left",
   "rollFacing": "left",
@@ -298,6 +333,114 @@
         260,
         420
       ]
+    },
+    "lift": {
+      "frames": [
+        64,
+        65
+      ],
+      "durations": [
+        110,
+        110
+      ]
+    },
+    "hang": {
+      "frames": [
+        48,
+        49,
+        50,
+        51
+      ],
+      "durations": [
+        260,
+        420,
+        420,
+        420
+      ]
+    },
+    "kick": {
+      "frames": [
+        52,
+        53,
+        54,
+        55
+      ],
+      "durations": [
+        130,
+        130,
+        130,
+        130
+      ]
+    },
+    "flail": {
+      "frames": [
+        56,
+        57,
+        58,
+        59
+      ],
+      "durations": [
+        110,
+        110,
+        110,
+        110
+      ]
+    },
+    "wiggle": {
+      "frames": [
+        60,
+        61,
+        62,
+        63
+      ],
+      "durations": [
+        120,
+        120,
+        120,
+        120
+      ]
+    },
+    "tired": {
+      "frames": [
+        66,
+        67,
+        68,
+        67
+      ],
+      "durations": [
+        600,
+        500,
+        700,
+        500
+      ]
+    },
+    "land_a": {
+      "frames": [
+        74,
+        75,
+        76
+      ],
+      "durations": [
+        170,
+        900,
+        700
+      ]
+    },
+    "land_b": {
+      "frames": [
+        70,
+        77,
+        78,
+        79,
+        69
+      ],
+      "durations": [
+        160,
+        600,
+        700,
+        900,
+        700
+      ]
     }
   },
   "spin": {
@@ -307,8 +450,14 @@
       43,
       44
     ],
-    "cx": 304.4,
-    "cy": 278.0,
-    "radius": 134.0
+    "cx": 260.2,
+    "cy": 260.8,
+    "radius": 143.2
+  },
+  "pins": {
+    "grab": {
+      "x": 150,
+      "y": 40
+    }
   }
 }

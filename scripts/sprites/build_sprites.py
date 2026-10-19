@@ -73,6 +73,9 @@ def split(rgb: np.ndarray, grid: list[int] | None) -> list[tuple[int, int, np.nd
     by_cell: dict[int, list[np.ndarray]] = {}
     for c in blobs:
         ys, xs = np.nonzero(c)
+        if ys.max() - ys.min() <= 8 and xs.max() - xs.min() >= 40:   # a drawn floor line: not the character
+            owner[c] = -2
+            continue
         cell = min(int(ys.mean() * rows / h), rows - 1) * cols + min(int(xs.mean() * cols / w), cols - 1)
         by_cell.setdefault(cell, []).append(c)
         owner[c] = cell
@@ -86,7 +89,8 @@ def split(rgb: np.ndarray, grid: list[int] | None) -> list[tuple[int, int, np.nd
         y0, y1 = max(0, ys.min() - pad), min(h, ys.max() + pad + 1)
         x0, x1 = max(0, xs.min() - pad), min(w, xs.max() + pad + 1)
         crop = rgb[y0:y1, x0:x1].copy()
-        others = dilate((owner[y0:y1, x0:x1] >= 0) & (owner[y0:y1, x0:x1] != cell), 2)
+        box = owner[y0:y1, x0:x1]
+        others = dilate(((box >= 0) & (box != cell)) | (box == -2), 2)
         crop[others] = 255
         cells.append((x0, y0, crop))
     return cells
@@ -111,6 +115,26 @@ def cut_out(rgb_u8: np.ndarray) -> np.ndarray:
     a3 = np.maximum(alpha, 1e-3)[..., None]
     col = np.clip((rgb - (1 - a3) * 255) / a3, 0, 255)       # un-premultiply against white
     return np.dstack([col, alpha * 255]).astype(np.uint8)
+
+
+def strip_floor_line(rgba: np.ndarray) -> np.ndarray:
+    """Remove a drawn floor line under the feet: a thin, wide band of opaque rows near the bottom.
+    Columns that are opaque just above the band (the shoes) are kept."""
+    a = rgba[..., 3] > 128
+    h, w = a.shape
+    widths = a.sum(1)
+    xs = np.nonzero(a.any(0))[0]
+    span = xs.max() - xs.min() + 1
+    band = [y for y in range(int(h * 0.6), h) if widths[y] >= 0.4 * span and widths[max(0, y - 8)] < 0.7 * widths[y]]
+    if not band:
+        return rgba
+    y0, y1 = min(band), max(band)
+    if y1 - y0 > 10:            # not a thin line: leave it alone
+        return rgba
+    keep = a[max(0, y0 - 3)]    # shoe columns right above the line
+    out = rgba.copy()
+    out[y0:y1 + 1, ~keep, 3] = 0
+    return out
 
 
 # ---- 3. inpainting ---------------------------------------------------------------------------
@@ -154,6 +178,8 @@ def measure(rgba: np.ndarray) -> dict:
                 its widest row (the ahoge, a hand raised above the head) don't count
       head_x  – centre of the face (largest skin-coloured blob in the upper body); falls back to the
                 centre of the hair mass when the face is hidden
+      head_h  – top of the hair mass to the chin: the head size as it reads, unlike the face width
+                not inflated by closed eyes (the skin is not split by the eyes)
       body_cx – centre of the body's bounding box (anchor for lying / rolling poses)
     Floating effects and props on the floor are separate blobs and are ignored entirely.
     """
@@ -168,26 +194,46 @@ def measure(rgba: np.ndarray) -> dict:
     upper = np.zeros_like(main)
     upper[top:top + int((bottom - top) * 0.55)] = True
     blobs = sorted(components(skin & upper), key=lambda c: -c.sum())
+    face_w = head_h = None
     if blobs and blobs[0].sum() >= main.sum() * FACE_MIN_SHARE:
         head_x = float(np.nonzero(blobs[0])[1].mean())
+        fy, fx = np.nonzero(blobs[0])
+        face_w = float(fx.max() - fx.min() + 1)
+        head_h = float(fy.max() - top + 1)    # top of the hair mass → chin
     else:
         head_x = float(np.nonzero(main[top:top + int((bottom - top) * 0.3)])[1].mean())
     cols = np.nonzero(main.any(0))[0]
     body_cx = (cols.min() + cols.max()) / 2
-    return {"top": top, "bottom": bottom, "height": bottom - top + 1, "head_x": head_x, "body_cx": float(body_cx)}
+    return {"top": top, "bottom": bottom, "height": bottom - top + 1, "head_x": head_x,
+            "body_cx": float(body_cx), "face_w": face_w, "head_h": head_h}
 
 
-def place(rgba: np.ndarray, m: dict, scale: float, ground: int, cfg: dict, frame_id: str) -> Image.Image:
+def pin_point(alpha: np.ndarray) -> tuple[float, int]:
+    """Top of the silhouette, searched in the middle half of its width (the scruff when held)."""
+    xs = np.nonzero(alpha.any(0))[0]
+    lo, hi = xs.min() + (xs.max() - xs.min()) // 4, xs.max() - (xs.max() - xs.min()) // 4
+    band = alpha[:, lo:hi + 1]
+    top = int(np.nonzero(band.any(1))[0].min())
+    return lo + float(np.nonzero(band[top])[0].mean()), top
+
+
+def place(rgba: np.ndarray, m: dict, scale: float, ground: int, cfg: dict, frame_id: str,
+          pin: tuple[int, int] | None = None) -> Image.Image:
     cw, ch = cfg["cell"]["w"], cfg["cell"]["h"]
     ax, ay = cfg["anchor"]["x"], cfg["anchor"]["y"]
     img = Image.fromarray(rgba, "RGBA")
     img = img.resize((round(img.width * scale), round(img.height * scale)), Image.LANCZOS)
-    ox, oy = round(ax - m["head_x"] * scale), round(ay - (ground + 1) * scale)
+    if pin:   # held frames: face centre and top of the head go on fixed points, so the body
+              # doesn't jump between panels (the silhouette top moves with the ahoge and the tail)
+        ox, oy = round(pin[2] - m["head_x"] * scale), round(pin[3] - m["top"] * scale)
+    else:
+        ox, oy = round(ax - m["head_x"] * scale), round(ay - (ground + 1) * scale)
     cell = Image.new("RGBA", (cw, ch))
     cell.alpha_composite(img, (max(ox, 0), max(oy, 0)), (max(-ox, 0), max(-oy, 0)))
     a = np.asarray(img)[..., 3] > 20
     ys, xs = np.nonzero(a)
-    clipped = [s for s, bad in (("left", xs.min() + ox < 0), ("right", xs.max() + ox >= cw), ("top", ys.min() + oy < 0)) if bad]
+    clipped = [s for s, bad in (("left", xs.min() + ox < 0), ("right", xs.max() + ox >= cw),
+                                ("top", ys.min() + oy < 0), ("bottom", ys.max() + oy >= ch)) if bad]
     if clipped:
         print(f"  ! {frame_id}: clipped on {', '.join(clipped)}")
     return cell
@@ -203,13 +249,14 @@ def frame_ids(spec) -> list:
 
 
 def expand(ids: list[str]) -> list[str]:
-    """Expand "roll-02..roll-32" into the ids in between (same prefix, two-digit numbers)."""
+    """Expand "kick-1..kick-4" / "roll-02..roll-32" into the ids in between (digit width as written)."""
     out = []
     for item in ids:
         if ".." in item:
             a, b = item.split("..")
-            prefix = a.rsplit("-", 1)[0]
-            out += [f"{prefix}-{i:02d}" for i in range(int(a.rsplit("-", 1)[1]), int(b.rsplit("-", 1)[1]) + 1)]
+            prefix, first = a.rsplit("-", 1)
+            width = len(first)
+            out += [f"{prefix}-{i:0{width}d}" for i in range(int(first), int(b.rsplit("-", 1)[1]) + 1)]
         else:
             out.append(item)
     return out
@@ -236,6 +283,8 @@ def main(manifest_path: Path) -> None:
                 continue
             row = k // src["grid"][0] if src.get("grid") else 0
             rgba = cut_out(crop)
+            if src.get("floorLines"):
+                rgba = strip_floor_line(rgba)
             boxes = [dict(b, box=[b["box"][0] - x0, b["box"][1] - y0, b["box"][2] - x0, b["box"][3] - y0])
                      for b in src.get("inpaint", []) if b["frame"] == fid]
             if boxes:
@@ -265,14 +314,35 @@ def main(manifest_path: Path) -> None:
     # frames in their grid (same row first), or — for a sheet with no standing pose at all —
     # "scaleMatch": {frame, to} makes `frame` exactly as tall as the already-placed frame `to`.
     frames_of = {src["file"]: frames for src, frames in sources}
-    scale, height = {}, {}
+    scale, height, face = {}, {}, {}
     for _, frames in sources:
         for fid, _, m in frames:
             height[fid] = m["height"]
+            face[fid] = m["face_w"]
             if not m["sitting"]:
                 scale[fid] = body_h / m["height"]
+    # Across sheets, equal heights are not enough: every sheet was drawn with its own head-to-body
+    # proportion, so the face would jump in size whenever playback moves from one sheet's frames to
+    # another's (a landing → the rest pose). Each sheet with standing frames therefore gets one extra
+    # factor that brings its median head height to the median over all sheets. "faceMatch" (0..1)
+    # chooses the balance: 1 = equal heads (bodies may differ a little), 0 = equal heights.
+    alpha = float(cfg.get("faceMatch", 1.0))
+    sheet_face = {}
+    for src, frames in sources:
+        heads = [m["head_h"] * scale[f] for f, _, m in frames if not m["sitting"] and m["head_h"] is not None]
+        if heads:
+            sheet_face[src["file"]] = float(np.median(heads))
+    if sheet_face and alpha:
+        target = float(np.median(list(sheet_face.values())))
+        for src, frames in sources:
+            if src["file"] in sheet_face:
+                k = (target / sheet_face[src["file"]]) ** alpha
+                for f, _, m in frames:
+                    if not m["sitting"]:
+                        scale[f] *= k
+
     pending = [(src, fid, m) for src, frames in sources for fid, _, m in frames if m["sitting"]]
-    for _ in range(2):   # second pass resolves scaleMatch references to sitting frames
+    for _ in range(3):   # later passes resolve scaleMatch chains (sheet → sheet → standing frame)
         for src, fid, m in pending:
             if fid in scale:
                 continue
@@ -283,15 +353,29 @@ def main(manifest_path: Path) -> None:
                 scale[fid] = float(np.mean(same_row or [v for v, _ in same_sheet]))
             elif "scaleMatch" in src and src["scaleMatch"]["to"] in scale:
                 ref, mine = src["scaleMatch"]["to"], src["scaleMatch"]["frame"]
-                sheet_scale = scale[ref] * height[ref] / height[mine]
+                # by "height" (similar poses) or "face" (face width; pick frames with open eyes)
+                size = face if src["scaleMatch"].get("by") == "face" else height
+                if size.get(ref) is None or size.get(mine) is None:
+                    sys.exit(f"scaleMatch {mine} → {ref}: no measurable {src['scaleMatch'].get('by', 'height')}")
+                sheet_scale = scale[ref] * size[ref] / size[mine]
                 for f, _, _ in frames_of[src["file"]]:
                     scale[f] = sheet_scale
+    # "scaleAdjust": a manual factor for sheets the measurements misjudge (e.g. bangs hiding the
+    # face in a hanging pose); tuned by eye against a neighbouring sheet.
+    # "frameScale": the same, per frame (a few panels drawn with a smaller head than their neighbours).
+    for src, frames in sources:
+        for f, _, _ in frames:
+            if f in scale:
+                scale[f] *= src.get("scaleAdjust", 1.0) * src.get("frameScale", {}).get(f, 1.0)
+
     missing = [fid for _, fid, _ in pending if fid not in scale]
     if missing:
         sys.exit(f"no scale for sitting frames {missing}: add a standing frame to the grid or a scaleMatch")
 
     # pass 2: place and pack. Feet go on the ground; frames listed in "airborne" (a jump) keep their
     # height above the floor line of their grid row instead.
+    pinned = {fid: (spec.get("x", cfg["anchor"]["x"]), spec.get("y", 40), spec["faceX"], spec["headTop"])
+              for spec in cfg.get("pins", {}).values() for fid in expand(spec["frames"])}
     cells, ids = [], []
     for src, frames in sources:
         floor = {}
@@ -300,7 +384,7 @@ def main(manifest_path: Path) -> None:
                 floor[m["row"]] = max(floor.get(m["row"], 0), m["bottom"])
         for fid, rgba, m in frames:
             ground = floor.get(m["row"], m["bottom"]) if fid in src.get("airborne", []) else m["bottom"]
-            cells.append(place(rgba, m, scale[fid], ground, cfg, fid))
+            cells.append(place(rgba, m, scale[fid], ground, cfg, fid, pinned.get(fid)))
             ids.append(fid)
     if len(set(ids)) != len(ids):
         sys.exit("duplicate frame ids in manifest")
@@ -349,6 +433,12 @@ def main(manifest_path: Path) -> None:
             atlas.paste(moved, ((i % cols) * cw, (i // cols) * ch))
         spin = {"frames": ids_, "cx": round(cx, 1), "cy": round(cy, 1), "radius": round(radius, 1)}
 
+    # "pins": frames held up by the scruff are placed with their face centre on `faceX` and the top
+    # of their head on `headTop` (see place()); `x`/`y` is the grab point the runtime keeps under
+    # the pointer.
+    pins = {name: {"x": spec.get("x", cfg["anchor"]["x"]), "y": spec.get("y", 40)}
+            for name, spec in cfg.get("pins", {}).items()}
+
     atlas.save(image_path, quality=90, method=6)
 
     meta = {
@@ -365,6 +455,7 @@ def main(manifest_path: Path) -> None:
         "rollFacing": cfg.get("rollFacing", "left"),    # which way the roll moves as drawn
         "animations": animations,
         "spin": spin,
+        "pins": pins,
     }
     (ROOT / out["meta"]).write_text(json.dumps(meta, ensure_ascii=False, indent=2) + "\n")
 

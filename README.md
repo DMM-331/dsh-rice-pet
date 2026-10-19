@@ -54,9 +54,16 @@ dev/           Local harness with mock events and a mock balance API
 ```
 
 Sprites: edit `art/sprites.json` (sources, frame ids, animations, durations) and run `pnpm sprites`
-(needs Python 3 with Pillow and NumPy). It splits the 2×2 grids, removes the white background,
-aligns every frame on the feet / head axis and writes `assets/sprites/whale.{webp,json}` plus a
-labelled contact sheet at `art/previews/atlas.png`.
+(needs Python 3 with Pillow and NumPy). It splits the grids, removes the white background, aligns
+every frame on the feet / face axis and writes `assets/sprites/whale.{webp,json}`, a labelled contact
+sheet (`art/previews/atlas.png`) and every behaviour laid out in playback order with measured head
+sizes (`art/previews/flows.png`).
+
+Sizing rule: inside a sheet, standing frames are normalised to the same body height; across sheets,
+each sheet gets one factor so its median head height (top of the hair to the chin) matches the other
+sheets, so switching between behaviours drawn in different sheets never changes her head size
+(`faceMatch`: 1 = equal heads, 0 = equal heights). Per-frame `frameScale` is only for panels the
+image model drew at a different size within one grid.
 
 | Agent state (session events) | What she does |
 |---|---|
@@ -66,6 +73,8 @@ labelled contact sheet at `art/previews/atlas.png`.
 | turn ends with `error` / `max-tokens` | chokes / holds her full belly |
 | a turn of 20s+ completes | jumps and gives a thumbs-up |
 | idle | walks or somersaults (rolls like a wheel: distance = angle × radius) around her area, little gestures, naps after 5 minutes |
+| picked up (drag) | dangles from the scruff under a pinching cursor and swings like a pendulum; struggles after 2.5 s, then goes limp |
+| thrown (release while moving) | flies under gravity, bounces off screen edges and tumbles; lands like a gymnast if she comes down upright, otherwise face-plants; walks back if she lands outside her area |
 
 ## License
 

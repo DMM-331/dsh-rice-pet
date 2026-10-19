@@ -25,7 +25,7 @@
     "prepare": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "dev": "node scripts/build.mjs && node dev/serve.mjs",
-    "sprites": "python3 scripts/sprites/build_sprites.py"
+    "sprites": "python3 scripts/sprites/build_sprites.py && python3 scripts/sprites/flows.py"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",

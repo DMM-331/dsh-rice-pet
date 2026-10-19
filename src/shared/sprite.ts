@@ -15,6 +15,8 @@ export const WALK_FACING = meta.walkFacing as 'left' | 'right'
 export const ROLL_FACING = meta.rollFacing as 'left' | 'right'
 /** The curled-up ball at 0/90/180/270° (rolling direction), its shared pivot and rolling radius (cell px). */
 export const SPIN = meta.spin as { frames: number[]; cx: number; cy: number; radius: number }
+/** Where held frames are pinched (top of the silhouette), cell px; kept under the pointer. */
+export const PIN = meta.pins.grab as { x: number; y: number }
 
 export class Sprite {
   private timer: ReturnType<typeof setTimeout> | undefined
