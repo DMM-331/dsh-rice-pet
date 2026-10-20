@@ -137,6 +137,14 @@ def strip_floor_line(rgba: np.ndarray) -> np.ndarray:
     return out
 
 
+def keep_main(rgba: np.ndarray) -> np.ndarray:
+    """Drop everything not attached to the character (drawn shadows, motion lines, puffs)."""
+    main = max(components(rgba[..., 3] > 40), key=lambda c: c.sum())
+    out = rgba.copy()
+    out[~dilate(main, 2), 3] = 0
+    return out
+
+
 # ---- 3. inpainting ---------------------------------------------------------------------------
 
 def inpaint(rgba: np.ndarray, boxes: list[dict]) -> np.ndarray:
@@ -285,6 +293,8 @@ def main(manifest_path: Path) -> None:
             rgba = cut_out(crop)
             if src.get("floorLines"):
                 rgba = strip_floor_line(rgba)
+            if fid in set(expand(src.get("mainOnly", []))):
+                rgba = keep_main(rgba)
             boxes = [dict(b, box=[b["box"][0] - x0, b["box"][1] - y0, b["box"][2] - x0, b["box"][3] - y0])
                      for b in src.get("inpaint", []) if b["frame"] == fid]
             if boxes:
@@ -406,7 +416,9 @@ def main(manifest_path: Path) -> None:
         missing = [f for f in seq if f not in index]
         if missing:
             sys.exit(f"animation {name}: unknown frames {missing}")
-        ms = a["ms"] if isinstance(a["ms"], list) else [a["ms"]] * len(seq)
+        ms = list(a["ms"]) if isinstance(a["ms"], list) else [a["ms"]] * len(seq)
+        # "hold": extra time on the last frame, so the mood / pose lingers before the rest pose
+        ms[-1] += a.get("hold", 0)
         if len(ms) != len(seq):
             sys.exit(f"animation {name}: {len(seq)} frames but {len(ms)} durations")
         animations[name] = {"frames": [index[f] for f in seq], "durations": ms}

@@ -5,13 +5,16 @@
  *   1. held / flying / region editing  – picked up by the scruff, thrown, or the user picks her area
  *   2. agent activity                  – eat while generating, take notes while tools run, wave for approvals
  *   3. queued reactions                – choke on errors, stuffed on max-tokens, cheer on long turns, pokes
- *   4. idle life                       – walk or somersault around her area, little idle gestures, nap after a while
+ *   4. moods                           – what events leave behind, read off the emotion model (emotion.ts):
+ *                                        sulk, wary, gloom, smug, expect, sleepy
+ *   5. idle life                       – walk or somersault around her area, little idle gestures, nap after a while
  * Every behaviour runs as a cancellable task: starting a new one bumps `task`, and older loops stop
  * at their next await.
  */
 import type { Activity } from './feed.ts'
 import type { RegionSource } from './region.ts'
 import { anim, CELL, PIN, POSE, ROLL_FACING, SPIN, Sprite, WALK_FACING, type AnimName, type Steps } from './sprite.ts'
+import { Emotion, type EmotionEvent, type Mood } from './emotion.ts'
 import { Flight, Pendulum, PointerVelocity } from './toss.ts'
 
 const SCALE = 0.42
@@ -39,6 +42,12 @@ const LINES = {
   full: '吃、吃撑了…',
   cheer: '做完啦！快回来看看~',
   struggle: ['放我下来！', '呜哇哇——', '哼！快松手！', '不要拎我啦！'],
+  regrab: ['又来！！', '说了不要拎我！'],
+  sulk: ['哼！', '不理你了', '……哼'],
+  wary: ['别过来！', '你、你想干嘛', '不许再拎我'],
+  smug: ['再来一次也行哦~', '厉害吧！'],
+  gloom: ['呜…', '饭都没吃好…'],
+  praised: ['嘿嘿~', '被夸了！'],
   tired: '……累了，随便你吧',
   stuck: ['完美落地！', '十点零分！', '哼哼~'],
   splat: ['呜…好痛', '鼻子…', '下次轻点啦！'],
@@ -46,8 +55,9 @@ const LINES = {
 
 const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]
 
-type Mode = 'idle' | 'walking' | 'busy' | 'activity' | 'asleep' | 'held' | 'flying' | 'editing'
-type Reaction = { anim: AnimName; line?: string }
+type Mode = 'idle' | 'walking' | 'busy' | 'activity' | 'asleep' | 'mood' | 'held' | 'flying' | 'editing'
+/** `feel`: the emotion event it causes; `upbeat`: a happy animation, skipped if she ends up upset. */
+type Reaction = { anim: AnimName; line?: string; feel?: EmotionEvent; upbeat?: boolean }
 
 export class Whale {
   readonly root = document.createElement('div')
@@ -60,6 +70,7 @@ export class Whale {
   private idleTimer: ReturnType<typeof setTimeout> | undefined
   private raf = 0
   private lastAttention = Date.now()
+  readonly emotion = new Emotion()
   private turnDeg = 0                   // extra rotation (somersault ball, dangling swing, tumbling flight)
   private held: { token: number; px: number; py: number; since: number; velocity: PointerVelocity; swing: Pendulum } | null = null
   private disposed = false
@@ -114,7 +125,8 @@ export class Whale {
   }
 
   react(kind: 'oops' | 'full' | 'cheer'): void {
-    this.queue({ anim: kind, line: LINES[kind] })
+    const feel: Record<typeof kind, EmotionEvent> = { oops: 'error', full: 'stuffed', cheer: 'taskDone' }
+    this.queue({ anim: kind, line: LINES[kind], feel: feel[kind], upbeat: kind === 'cheer' })
   }
 
   say(text: string): void {
@@ -133,9 +145,10 @@ export class Whale {
       if (this.mode !== 'activity') void this.runActivity()
       return
     }
-    if (this.mode === 'activity' || this.mode === 'busy') return   // they hand back via toIdle()
+    if (this.mode === 'activity' || this.mode === 'busy' || this.mode === 'mood') return   // they hand back via toIdle()
     const reaction = this.reactions.shift()
     if (reaction) return void this.runReaction(reaction)
+    if (this.mode === 'idle' && this.emotion.mood) return void this.runMood()
     if (this.mode === 'idle') this.scheduleIdleLife()
   }
 
@@ -195,17 +208,66 @@ export class Whale {
         : a === 'tool' ? 'tool_loop'
         : Date.now() - askSince > ASK_IMPATIENT_MS ? 'ask_more' : 'ask'
       if (!(await this.play(token, anim(loop)))) return
+      if (loop === 'eat_loop') this.emotion.feel('eat', 1.3)     // one bite ≈ 1.3 s of eating
     }
     if (!this.alive(token)) return
+    // Linger on how the work ended before going back to the rest pose.
     if (current === 'generating' && !(await this.play(token, anim('eat_done')))) return
+    if (current === 'tool' && !(await this.play(token, anim('tool_end')))) return
     this.toIdle()
   }
 
   private async runReaction(r: Reaction): Promise<void> {
     const { token, wasAsleep } = this.begin('busy')
     if (wasAsleep && !(await this.play(token, anim('wake')))) return
-    if (r.line) this.say(r.line)
-    if (await this.play(token, anim(r.anim))) this.toIdle()
+    if (r.feel) this.emotion.feel(r.feel)
+    // A happy ending is only played if she actually ends up happy (no cheering while sulking).
+    if (!r.upbeat || this.emotion.valence >= 0) {
+      if (r.line) this.say(r.line)
+      if (!(await this.play(token, anim(r.anim)))) return
+    }
+    this.toIdle()
+  }
+
+  // ---- moods: read off the emotion model, lived out until they fade -------------------------
+
+  private static readonly MOOD_LOOP: Record<Exclude<Mood, 'sleepy'>, () => AnimName> = {
+    sulk: () => (Math.random() < 0.25 ? 'sulk_peek' : 'sulk'),
+    wary: () => 'wary',
+    gloom: () => 'gloom',
+    smug: () => 'smug',
+    expect: () => 'expect',
+  }
+
+  /** Live whatever mood the emotion model reports until it fades; `intro` plays first. */
+  private async runMood(intro?: Steps): Promise<void> {
+    const { token } = this.begin('mood')
+    if (intro && !(await this.play(token, intro))) return
+    let prev: Mood | null = intro ? this.emotion.mood : null
+    for (let mood = this.emotion.mood; mood; mood = this.emotion.mood) {
+      if (mood === 'sleepy') {
+        if (!(await this.play(token, anim('sleepy')))) return
+        return void this.fallAsleep()
+      }
+      if (mood === 'wary' && prev !== 'wary' && !(await this.play(token, anim('wary_in')))) return
+      prev = mood
+      if (!(await this.play(token, anim(Whale.MOOD_LOOP[mood]())))) return
+    }
+    if (prev === 'sulk' && !(await this.play(token, anim('hmph')))) return
+    this.toIdle()
+  }
+
+  /** A click while she is in a mood: the emotion model decides what it means. */
+  private pokeMood(): void {
+    const before = this.emotion.mood
+    this.emotion.poke()
+    switch (before) {
+      case 'sulk': this.say(pick(LINES.sulk)); return void this.runMood(anim('hmph'))
+      case 'wary': this.say(pick(LINES.wary)); return void this.runMood(anim('wary'))
+      case 'gloom': this.say(pick(LINES.gloom)); return void this.runMood()
+      case 'smug': case 'expect': return void this.runReaction({ anim: 'praised', line: pick(LINES.praised) })
+      default: return void this.runMood()
+    }
   }
 
   private async fallAsleep(): Promise<void> {
@@ -339,6 +401,7 @@ export class Whale {
     this.lastAttention = Date.now()
     if (this.mode === 'asleep') return void this.runReaction({ anim: 'wake', line: '唔…早上好？' })
     if (this.mode === 'activity') return this.say(this.activity === 'ask' ? LINES.askPoke : pick(LINES.busy))
+    if (this.mode === 'mood') return this.pokeMood()
     if (this.mode === 'idle' || this.mode === 'walking') this.runReaction({ anim: 'poke', line: pick(LINES.poke) })
   }
 
@@ -377,9 +440,15 @@ export class Whale {
     const { token } = this.begin('held')
     this.lastAttention = Date.now()
     this.root.classList.add('wr-held')
+    // Picked up again while sulking / wary: no patience left, she struggles right away.
+    const before = this.emotion.mood
+    const angry = before === 'sulk' || before === 'wary'
+    this.emotion.feel('grab')
+    if (angry) this.say(pick(LINES.regrab))
     const velocity = new PointerVelocity()
     velocity.add(px, py)
-    this.held = { token, px, py, since: performance.now(), velocity, swing: new Pendulum() }
+    const since = performance.now() - (angry ? STRUGGLE_AFTER_MS : 0)
+    this.held = { token, px, py, since, velocity, swing: new Pendulum() }
     const pin = this.setPivot(PIN.x, PIN.y)
     // Where she was grabbed relative to the scruff; eased away so she is pulled up into the
     // pinch instead of jumping there.
@@ -411,6 +480,7 @@ export class Whale {
         continue
       }
       this.say(pick(LINES.struggle))
+      this.emotion.feel('struggle')
       const until = performance.now() + STRUGGLE_MS
       while (performance.now() < until) {
         if (!(await this.play(token, anim(pick(['kick', 'flail', 'wiggle'] as const), 2)))) return
@@ -470,15 +540,22 @@ export class Whale {
     this.root.style.transformOrigin = ''
     this.render(0)
 
+    // Physics decides how she lands; the emotion model decides how she takes it. A clean landing
+    // only gets the proud ending if she is actually in a good mood afterwards.
     if (ground - highest < 40 && tilt < 60) {
       if (!(await this.play(token, [[POSE.touch_down, 160]]))) return     // just set down
     } else if (tilt <= STICK_LANDING_DEG && impact < STICK_LANDING_SPEED) {
-      this.say(pick(LINES.stuck))
-      if (!(await this.play(token, anim('land_a')))) return
+      this.emotion.feel('stuck')
+      if (this.emotion.valence >= 0) {
+        this.say(pick(LINES.stuck))
+        if (!(await this.play(token, anim('land_a')))) return
+      } else if (!(await this.play(token, [[POSE.touch_down, 400]]))) return
     } else {
+      this.emotion.feel('faceplant')
       this.say(pick(LINES.splat))
       if (!(await this.play(token, anim('land_b')))) return
     }
+    // Then she walks back into her area if needed, and the mood plays out from idle.
     // Thrown out of her area: walk back in.
     const tx = Math.min(Math.max(this.pos.x, r.left), r.right - W)
     const ty = Math.min(Math.max(this.pos.y, r.top), r.bottom - H)

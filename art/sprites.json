@@ -51,7 +51,13 @@
       "frames": ["air-rise", "air-tumble", "air-fall", "land-crouch", "land-ta-da", "land-proud",
                  "splat-flat", "splat-dazed", "splat-sit"],
       "standing": ["land-ta-da", "land-proud"], "mirror": ["air-fall"], "floorLines": true, "anchor": "body",
-      "frameScale": { "air-rise": 1.1, "air-tumble": 1.14, "air-fall": 1.06 } }
+      "frameScale": { "air-rise": 1.1, "air-tumble": 1.14, "air-fall": 1.06 } },
+
+    { "file": "batch5/mood.jpeg", "grid": [4, 4],
+      "frames": ["sulk-back-1", "sulk-back-2", "sulk-peek", "sulk-hmph", "wary-rub", "wary-glare", "smug-hop", "smug-pose",
+                 "gloom-1", "gloom-2", "expect-1", "expect-2", "praised", null, "sleepy-yawn", "dizzy"],
+      "standing": ["sulk-hmph", "wary-rub", "wary-glare", "smug-pose", "expect-1", "expect-2", "praised", "sleepy-yawn", "dizzy"],
+      "airborne": ["smug-hop"], "mainOnly": ["sulk-back-2", "smug-hop"] }
   ],
 
   "spin": { "frames": ["sault-ball-0", "sault-ball-90", "sault-ball-180", "sault-ball-270"] },
@@ -76,8 +82,8 @@
   "animations": {
     "eat_start": { "frames": ["eat-start"], "ms": 500 },
     "eat_loop":  { "frames": ["eat-reach", "eat-chomp", "eat-chew-hard", "eat-chew-happy", "eat-chew-hard", "eat-chew-happy"], "ms": [260, 220, 180, 180, 180, 260] },
-    "eat_done":  { "frames": ["eat-done", "eat-more"], "ms": [500, 600] },
-    "poke":      { "frames": ["eat-more"], "ms": 1100 },
+    "eat_done":  { "frames": ["eat-done", "eat-more"], "ms": [500, 600], "hold": 900 },
+    "poke":      { "frames": ["eat-more"], "ms": 1100, "hold": 400 },
 
     "walk":      { "frames": ["walk-1", "walk-2", "walk-3", "walk-4"], "ms": 170 },
 
@@ -88,20 +94,33 @@
 
     "sleep_in":  { "frames": ["sleep-yawn", "sleep-nod"], "ms": [1200, 1400] },
     "sleep":     { "frames": ["sleep-1", "sleep-2"], "ms": 1600 },
-    "wake":      { "frames": ["wake-startle", "wake-rub", "wake-stretch", "wake-ready"], "ms": [450, 700, 800, 500] },
+    "wake":      { "frames": ["wake-startle", "wake-rub", "wake-stretch", "wake-ready"], "ms": [450, 700, 800, 500], "hold": 700 },
 
     "tool_start": { "frames": ["tool-read"], "ms": 600 },
+    "tool_end":  { "frames": ["tool-nod"], "ms": 900 },
     "tool_loop":  { "frames": ["tool-write", "tool-think", "tool-write", "tool-nod"], "ms": [900, 1100, 900, 700] },
 
     "ask":       { "frames": ["ask-1", "ask-2"], "ms": 380 },
     "ask_more":  { "frames": ["ask-plead", "ask-knock"], "ms": [1400, 900] },
 
-    "oops":      { "frames": ["oops-stuffed", "oops-cough", "oops-teary", "oops-wipe"], "ms": [500, 700, 900, 1000] },
-    "full":      { "frames": ["full-belly", "full-lean"], "ms": [1200, 1400] },
-    "cheer":     { "frames": ["cheer-jump", "cheer-thumbs"], "ms": [600, 1300] },
+    "oops":      { "frames": ["oops-stuffed", "oops-cough", "oops-teary", "oops-wipe"], "ms": [500, 700, 900, 1000], "hold": 1200 },
+    "full":      { "frames": ["full-belly", "full-lean"], "ms": [1200, 1400], "hold": 1000 },
+    "cheer":     { "frames": ["cheer-jump", "cheer-thumbs"], "ms": [600, 1300], "hold": 900 },
 
     "sault_in":  { "frames": ["sault-stand", "sault-crouch", "sault-ball-0"], "ms": [220, 200, 90] },
-    "sault_out": { "frames": ["sault-dizzy", "sault-kneel", "sault-up"], "ms": [650, 260, 420] },
+    "sault_out": { "frames": ["sault-dizzy", "sault-kneel", "sault-up"], "ms": [650, 260, 420], "hold": 900 },
+
+    "sulk":      { "frames": ["sulk-back-1", "sulk-back-2", "sulk-back-1", "sulk-back-2"], "ms": [1400, 450, 1600, 450] },
+    "sulk_peek": { "frames": ["sulk-peek"], "ms": 1300 },
+    "hmph":      { "frames": ["sulk-hmph"], "ms": 1300 },
+    "wary_in":   { "frames": ["wary-rub"], "ms": 1600 },
+    "wary":      { "frames": ["wary-glare"], "ms": 2000 },
+    "smug":      { "frames": ["smug-hop", "smug-pose"], "ms": [260, 1000] },
+    "gloom":     { "frames": ["gloom-1", "gloom-2"], "ms": [1500, 1700] },
+    "expect":    { "frames": ["expect-1", "expect-2"], "ms": 450 },
+    "praised":   { "frames": ["praised"], "ms": 1800 },
+    "sleepy":    { "frames": ["sleepy-yawn"], "ms": 1800 },
+    "dizzy":     { "frames": ["dizzy"], "ms": 1500 },
 
     "lift":      { "frames": ["lift-up", "lift-tilt"], "ms": [110, 110] },
     "hang":      { "frames": ["hang-1", "hang-2", "hang-3", "hang-4"], "ms": [260, 420, 420, 420] },
@@ -110,7 +129,7 @@
     "wiggle":    { "frames": ["wiggle-1", "wiggle-2", "wiggle-3", "wiggle-4"], "ms": 120 },
     "tired":     { "frames": ["tired-1", "tired-2", "tired-3", "tired-2"], "ms": [600, 500, 700, 500] },
 
-    "land_a":    { "frames": ["land-crouch", "land-ta-da", "land-proud"], "ms": [170, 900, 700] },
-    "land_b":    { "frames": ["splat-impact", "splat-flat", "splat-dazed", "splat-sit", "splat-stand"], "ms": [160, 600, 700, 900, 700] }
+    "land_a":    { "frames": ["land-crouch", "land-ta-da", "land-proud"], "ms": [170, 900, 700], "hold": 1300 },
+    "land_b":    { "frames": ["splat-impact", "splat-flat", "splat-dazed", "splat-sit", "splat-stand"], "ms": [160, 600, 700, 900, 700], "hold": 1200 }
   }
 }
