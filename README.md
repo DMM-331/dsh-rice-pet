@@ -11,7 +11,7 @@ lives on your desktop, anywhere on any screen; elsewhere she stays inside the DS
 ![DeepSeek 桌宠插件：鲸鱼娘在桌面上吃白饭](art/previews/eat.gif)
 
 ```bash
-dsh plugin --profile web add github:linner331/dsh-whale-rice
+dsh plugin --profile web add github:DMM-331/dsh-whale-rice
 ```
 
 ## 目录 · Contents
@@ -41,7 +41,7 @@ dsh plugin --profile web add github:linner331/dsh-whale-rice
 ## Installation
 
 ```bash
-dsh plugin --profile web add github:linner331/dsh-whale-rice
+dsh plugin --profile web add github:DMM-331/dsh-whale-rice
 ```
 
 The key is read from the DSH credentials service under the name `DEEPSEEK_API_KEY` (the same one DSH itself uses), with the environment variable as a fallback.
@@ -134,7 +134,7 @@ image model drew at a different size within one grid.
 代码 MIT、美术 CC BY-NC-SA，和 DeepSeek 官方没有关系。
 
 **怎么安装这个 DeepSeek 桌宠插件？**
-一条命令：`dsh plugin --profile web add github:linner331/dsh-whale-rice`，然后重启 DeepSeek Harness。
+一条命令：`dsh plugin --profile web add github:DMM-331/dsh-whale-rice`，然后重启 DeepSeek Harness。
 装好后她就待在 DSH 窗口里；桌面模式默认开启（`desktop: true`），她会走到桌面上，想要只留在窗口里就设成 `false`。
 
 **支持 Windows 吗？支持 macOS 吗？**

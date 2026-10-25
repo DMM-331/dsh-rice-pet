@@ -19,13 +19,13 @@
     "deepseek桌宠",
     "鲸鱼娘"
   ],
-  "homepage": "https://github.com/linner331/dsh-whale-rice#readme",
+  "homepage": "https://github.com/DMM-331/dsh-whale-rice#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/linner331/dsh-whale-rice.git"
+    "url": "git+https://github.com/DMM-331/dsh-whale-rice.git"
   },
   "bugs": {
-    "url": "https://github.com/linner331/dsh-whale-rice/issues"
+    "url": "https://github.com/DMM-331/dsh-whale-rice/issues"
   },
   "author": "linner331",
   "exports": {
