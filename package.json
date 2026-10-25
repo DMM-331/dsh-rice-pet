@@ -1,9 +1,33 @@
 {
   "name": "dsh-whale-rice",
-  "description": "A chibi whale maid who keeps eating white rice while DeepSeek is generating — inside DSH or anywhere on your desktop.",
+  "description": "A DeepSeek desktop pet plugin for DeepSeek Harness: a chibi whale maid eats white rice while the model generates — she lives inside the DSH window or anywhere on your desktop.",
   "version": "0.2.7",
   "type": "module",
   "main": "lib/index.js",
+  "keywords": [
+    "deepseek",
+    "deepseek-desktop-pet",
+    "deepseek-harness",
+    "desktop-pet",
+    "desktop-mascot",
+    "virtual-pet",
+    "dsh",
+    "dsh-plugin",
+    "whale",
+    "anime-desktop-pet",
+    "桌宠",
+    "deepseek桌宠",
+    "鲸鱼娘"
+  ],
+  "homepage": "https://github.com/linner331/dsh-whale-rice#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linner331/dsh-whale-rice.git"
+  },
+  "bugs": {
+    "url": "https://github.com/linner331/dsh-whale-rice/issues"
+  },
+  "author": "linner331",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
