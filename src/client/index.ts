@@ -1,5 +1,5 @@
 /**
- * Web half of dsh-whale-rice. Mounts a fixed overlay with the whale maid inside the DSH window and
+ * Web half of dsh-rice-pet. Mounts a fixed overlay with the whale maid inside the DSH window and
  * follows the node half's event stream. When the desktop overlay (macOS) is running she lives there
  * instead, and this one steps aside. Everything is removed when the plugin unloads.
  */
@@ -14,7 +14,7 @@ interface ClientContext {
   effect(fn: () => () => void, label?: string): void
 }
 
-const PLUGIN_ID = 'dsh-whale-rice'
+const PLUGIN_ID = 'dsh-rice-pet'
 
 const hostUrl = (path: string): string => new URL(`whale-rice/${path}`, document.baseURI).href
 

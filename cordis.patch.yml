@@ -2,7 +2,7 @@
 # Install: dsh plugin --profile web add <path-or-git-url>
 - insert:
     - id: whale-rice
-      name: 'dsh-whale-rice'
+      name: 'dsh-rice-pet'
       # config:
       #   apiKeyRef: DEEPSEEK_API_KEY   # credential / env var name holding the DeepSeek key
       #   pollSeconds: 60
